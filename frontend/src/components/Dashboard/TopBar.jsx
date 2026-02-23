@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Bell, Sun, Moon, Menu, ChevronRight, ChevronDown, LogOut, User, Settings } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../hooks/useAuth";
+import { useNotifications } from "../../hooks/useNotifications";
 import { titleCase } from "../../utils/helpers";
 import { NotificationDropdown } from "./NotificationDropdown";
 
@@ -44,14 +45,44 @@ export const TopBar = ({ onMenuClick }) => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const unreadCount = 3;
     const role = auth?.role?.toUpperCase() || "STUDENT";
     const pageTitle = roleTitles[role] || "Dashboard";
+    const {
+        notifications,
+        unreadCount,
+        loading: notificationsLoading,
+        error: notificationsError,
+        markRead,
+        markAllRead,
+    } = useNotifications(Boolean(auth?.token));
 
     const handleLogout = () => {
         setShowUserMenu(false);
         logout();
         window.location.href = "/";
+    };
+
+    const openNotification = async (notification) => {
+        if (!notification) return;
+        try {
+            if (!notification.read) {
+                await markRead(notification.id);
+            }
+        } catch {
+            // ignore and still navigate
+        }
+        setShowNotifications(false);
+        if (notification.linkUrl) {
+            window.location.href = notification.linkUrl;
+        }
+    };
+
+    const handleMarkAllRead = async () => {
+        try {
+            await markAllRead();
+        } catch {
+            // ignore transient errors in dropdown action
+        }
     };
 
     return (
@@ -92,6 +123,12 @@ export const TopBar = ({ onMenuClick }) => {
                         {showNotifications && (
                             <div ref={dropdownRef}>
                                 <NotificationDropdown
+                                    notifications={notifications}
+                                    unreadCount={unreadCount}
+                                    loading={notificationsLoading}
+                                    error={notificationsError}
+                                    onOpenNotification={openNotification}
+                                    onMarkAllRead={handleMarkAllRead}
                                     onClose={() => setShowNotifications(false)}
                                 />
                             </div>

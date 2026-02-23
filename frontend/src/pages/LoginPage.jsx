@@ -1,9 +1,10 @@
 import { Eye, EyeOff, Wrench, Zap, Shield, ChevronRight, ArrowLeft, Mail, Loader2, KeyRound, RefreshCcw, CheckCircle2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { ROLES } from "../utils/constants";
 import { authService } from "../services/authService";
+import { evaluatePassword } from "../utils/passwordPolicy";
 
 const destination = (role) => {
   if (role === ROLES.ADMIN) return "/admin";
@@ -106,6 +107,10 @@ export const LoginPage = () => {
           onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
           className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-campus-500 dark:focus:ring-campus-900/30"
           placeholder="Enter your username"
+          name="username"
+          autoComplete="username"
+          autoCapitalize="off"
+          spellCheck={false}
           required
         />
 
@@ -120,6 +125,8 @@ export const LoginPage = () => {
             type={showPassword ? "text" : "password"}
             className="w-full rounded-l-xl bg-transparent px-4 py-2.5 text-sm outline-none dark:text-white"
             placeholder="Enter your password"
+            name="password"
+            autoComplete="current-password"
             required
           />
           <button
@@ -262,6 +269,7 @@ export const VerifyEmailPage = () => {
           onChange={(e) => setEmail(e.target.value)}
           className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-campus-500 dark:focus:ring-campus-900/30"
           placeholder="Enter your email"
+          autoComplete="email"
           required
         />
 
@@ -423,6 +431,7 @@ export const ForgotPasswordPage = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-transparent px-3 py-2.5 text-sm outline-none dark:text-white"
                   placeholder="Enter your email address"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -500,6 +509,7 @@ export const ResetPasswordPage = () => {
 
   // Get token from URL
   const token = new URLSearchParams(window.location.search).get("token");
+  const passwordState = useMemo(() => evaluatePassword(password), [password]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -507,8 +517,8 @@ export const ResetPasswordPage = () => {
       setError("Passwords do not match.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (!passwordState.valid) {
+      setError(passwordState.messages[0] || "Password does not meet policy.");
       return;
     }
     setLoading(true);
@@ -579,8 +589,8 @@ export const ResetPasswordPage = () => {
                     type={showPassword ? "text" : "password"}
                     className="w-full rounded-l-xl bg-transparent px-4 py-2.5 text-sm outline-none dark:text-white"
                     placeholder="Enter new password"
+                    autoComplete="new-password"
                     required
-                    minLength={6}
                   />
                   <button
                     type="button"
@@ -602,10 +612,43 @@ export const ResetPasswordPage = () => {
                   type="password"
                   className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-campus-500 dark:focus:ring-campus-900/30"
                   placeholder="Confirm new password"
+                  autoComplete="new-password"
                   required
-                  minLength={6}
                 />
               </div>
+
+              {password && (
+                <div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800">
+                    <div
+                      className={`h-full transition-all duration-200 ${
+                        passwordState.level === "high"
+                          ? "w-full bg-emerald-500"
+                          : passwordState.level === "medium"
+                          ? "w-2/3 bg-orange-500"
+                          : "w-1/3 bg-red-500"
+                      }`}
+                    />
+                  </div>
+                  <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                    Password strength:{" "}
+                    <span
+                      className={
+                        passwordState.level === "high"
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : passwordState.level === "medium"
+                          ? "text-orange-600 dark:text-orange-400"
+                          : "text-red-600 dark:text-red-400"
+                      }
+                    >
+                      {passwordState.level.toUpperCase()}
+                    </span>
+                  </p>
+                  {!passwordState.valid && (
+                    <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">{passwordState.messages[0]}</p>
+                  )}
+                </div>
+              )}
 
               {error && (
                 <p className="rounded-xl bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 dark:bg-red-900/20 dark:text-red-300">
@@ -624,6 +667,186 @@ export const ResetPasswordPage = () => {
                   </>
                 ) : (
                   "Reset Password"
+                )}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </AuthBackground>
+  );
+};
+
+/* ==================================================================== */
+/*  ACCEPT STAFF INVITE PAGE                                            */
+/* ==================================================================== */
+export const AcceptStaffInvitePage = () => {
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const token = new URLSearchParams(window.location.search).get("token");
+  const passwordState = useMemo(() => evaluatePassword(password), [password]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (!token) {
+      setError("Invitation token is missing.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (!passwordState.valid) {
+      setError(passwordState.messages[0] || "Password does not meet policy.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await authService.acceptStaffInvite(token, password);
+      setSuccess(true);
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Failed to accept invitation.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!token) {
+    return (
+      <AuthBackground>
+        <div className="relative z-10 w-full max-w-md animate-soft-rise rounded-3xl border border-white/60 bg-white/90 p-8 text-center shadow-panel backdrop-blur-xl dark:border-slate-700/60 dark:bg-slate-900/85">
+          <CampusFixLogo />
+          <h2 className="mt-5 text-xl font-bold text-gray-900 dark:text-white">Invalid Invite Link</h2>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            This invitation is missing or invalid. Ask an admin to send a new invite.
+          </p>
+          <Link to="/login" className="btn-primary mt-6 inline-flex w-full justify-center no-underline">
+            Back to Sign In
+          </Link>
+        </div>
+      </AuthBackground>
+    );
+  }
+
+  return (
+    <AuthBackground>
+      <div className="relative z-10 w-full max-w-md animate-soft-rise rounded-3xl border border-white/60 bg-white/90 p-8 shadow-panel backdrop-blur-xl dark:border-slate-700/60 dark:bg-slate-900/85">
+        <CampusFixLogo />
+        {success ? (
+          <div className="mt-6 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/30">
+              <CheckCircle2 size={28} className="text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Account Activated</h2>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              Your staff account is ready. Sign in to access the maintenance dashboard.
+            </p>
+            <Link to="/login" className="btn-primary mt-6 inline-flex w-full justify-center no-underline">
+              Sign In
+            </Link>
+          </div>
+        ) : (
+          <>
+            <h1 className="mt-5 text-center text-2xl font-bold text-gray-900 dark:text-white">Activate Staff Account</h1>
+            <p className="mt-1.5 text-center text-sm text-gray-500 dark:text-gray-400">
+              Set your password to complete account activation.
+            </p>
+
+            <form onSubmit={submit} className="mt-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                  Password
+                </label>
+                <div className="mt-1.5 flex rounded-xl border border-gray-200 bg-white transition-all duration-200 focus-within:border-campus-400 focus-within:ring-2 focus-within:ring-campus-100 dark:border-slate-700 dark:bg-slate-800 dark:focus-within:border-campus-500 dark:focus-within:ring-campus-900/30">
+                  <input
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    type={showPassword ? "text" : "password"}
+                    className="w-full rounded-l-xl bg-transparent px-4 py-2.5 text-sm outline-none dark:text-white"
+                    placeholder="Enter password"
+                    autoComplete="new-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="rounded-r-xl px-3 text-gray-400 transition hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                  Confirm Password
+                </label>
+                <input
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  type="password"
+                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-campus-500 dark:focus:ring-campus-900/30"
+                  placeholder="Confirm password"
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+
+              {password && (
+                <div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800">
+                    <div
+                      className={`h-full transition-all duration-200 ${
+                        passwordState.level === "high"
+                          ? "w-full bg-emerald-500"
+                          : passwordState.level === "medium"
+                          ? "w-2/3 bg-orange-500"
+                          : "w-1/3 bg-red-500"
+                      }`}
+                    />
+                  </div>
+                  <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                    Password strength:{" "}
+                    <span
+                      className={
+                        passwordState.level === "high"
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : passwordState.level === "medium"
+                          ? "text-orange-600 dark:text-orange-400"
+                          : "text-red-600 dark:text-red-400"
+                      }
+                    >
+                      {passwordState.level.toUpperCase()}
+                    </span>
+                  </p>
+                  {!passwordState.valid && (
+                    <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">{passwordState.messages[0]}</p>
+                  )}
+                </div>
+              )}
+
+              {error && (
+                <p className="rounded-xl bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                  {error}
+                </p>
+              )}
+
+              <button
+                disabled={loading}
+                type="submit"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-campus-500 to-campus-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-campus-500/25 transition-all duration-200 hover:from-campus-600 hover:to-campus-700 hover:shadow-campus-500/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" /> Activating...
+                  </>
+                ) : (
+                  "Activate Account"
                 )}
               </button>
             </form>

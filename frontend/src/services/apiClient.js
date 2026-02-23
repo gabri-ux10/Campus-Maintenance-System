@@ -19,7 +19,7 @@ const apiClient = axios.create({
 });
 
 // Pages where we should never show session-expired toasts
-const AUTH_PAGES = ["/login", "/register", "/forgot-password", "/reset-password"];
+const AUTH_PAGES = ["/login", "/register", "/forgot-password", "/reset-password", "/accept-invite"];
 const isAuthPage = () => AUTH_PAGES.some((p) => window.location.pathname.startsWith(p));
 const PUBLIC_ENDPOINTS = ["/analytics/public-summary", "/analytics/public-config", "/public/contact-support"];
 const isPublicEndpoint = (url = "") => PUBLIC_ENDPOINTS.some((endpoint) => url.includes(endpoint));

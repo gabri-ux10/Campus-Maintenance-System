@@ -17,6 +17,7 @@ import com.smartcampus.maintenance.entity.TicketComment;
 import com.smartcampus.maintenance.entity.TicketLog;
 import com.smartcampus.maintenance.entity.TicketRating;
 import com.smartcampus.maintenance.entity.User;
+import com.smartcampus.maintenance.entity.enums.NotificationType;
 import com.smartcampus.maintenance.entity.enums.Role;
 import com.smartcampus.maintenance.entity.enums.TicketCategory;
 import com.smartcampus.maintenance.entity.enums.TicketStatus;
@@ -34,9 +35,12 @@ import com.smartcampus.maintenance.repository.TicketSpecifications;
 import com.smartcampus.maintenance.repository.UserRepository;
 import com.smartcampus.maintenance.util.FileStorageService;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -56,6 +60,8 @@ public class TicketService {
     private final TicketCommentRepository ticketCommentRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
+    private final NotificationDispatchService notificationDispatchService;
+    private final EmailService emailService;
 
     public TicketService(
             TicketRepository ticketRepository,
@@ -63,13 +69,17 @@ public class TicketService {
             TicketRatingRepository ticketRatingRepository,
             TicketCommentRepository ticketCommentRepository,
             UserRepository userRepository,
-            FileStorageService fileStorageService) {
+            FileStorageService fileStorageService,
+            NotificationDispatchService notificationDispatchService,
+            EmailService emailService) {
         this.ticketRepository = ticketRepository;
         this.ticketLogRepository = ticketLogRepository;
         this.ticketRatingRepository = ticketRatingRepository;
         this.ticketCommentRepository = ticketCommentRepository;
         this.userRepository = userRepository;
         this.fileStorageService = fileStorageService;
+        this.notificationDispatchService = notificationDispatchService;
+        this.emailService = emailService;
     }
 
     @Transactional
@@ -89,6 +99,12 @@ public class TicketService {
 
         Ticket saved = ticketRepository.save(ticket);
         addLog(saved, null, TicketStatus.SUBMITTED, actor, "Ticket submitted");
+        notifyAdmins(
+                "New ticket #" + saved.getId(),
+                actor.getFullName() + " submitted \"" + saved.getTitle() + "\".",
+                NotificationType.TICKET_UPDATE,
+                ticketLink(saved));
+        emailService.sendTicketCreatedEmail(actor.getEmail(), saved.getTitle(), saved.getId());
         return TicketMapper.toResponse(saved);
     }
 
@@ -170,6 +186,19 @@ public class TicketService {
         ticket.setStatus(TicketStatus.ASSIGNED);
         Ticket saved = ticketRepository.save(ticket);
         addLog(saved, oldStatus, TicketStatus.ASSIGNED, actor, safeNote(request.note(), "Ticket assigned"));
+        notificationDispatchService.notifyUser(
+                assignee,
+                "Ticket #" + saved.getId() + " assigned",
+                "You were assigned \"" + saved.getTitle() + "\".",
+                NotificationType.ASSIGNMENT,
+                ticketLink(saved));
+        notificationDispatchService.notifyUser(
+                saved.getCreatedBy(),
+                "Ticket #" + saved.getId() + " assigned",
+                "Your ticket \"" + saved.getTitle() + "\" is now assigned to maintenance.",
+                NotificationType.TICKET_UPDATE,
+                ticketLink(saved));
+        emailService.sendTicketAssignedEmail(assignee.getEmail(), saved.getTitle(), saved.getId());
         return TicketMapper.toResponse(saved);
     }
 
@@ -193,6 +222,14 @@ public class TicketService {
 
         Ticket saved = ticketRepository.save(ticket);
         addLog(saved, oldStatus, targetStatus, actor, request.note());
+
+        String statusLabel = targetStatus.name().replace('_', ' ').toLowerCase();
+        String message = "Ticket \"" + saved.getTitle() + "\" moved to " + statusLabel + ".";
+        notifyTicketStakeholders(saved, actor, "Ticket #" + saved.getId() + " status updated", message);
+
+        if (targetStatus == TicketStatus.RESOLVED) {
+            emailService.sendTicketResolvedEmail(saved.getCreatedBy().getEmail(), saved.getTitle(), saved.getId());
+        }
         return TicketMapper.toResponse(saved);
     }
 
@@ -314,6 +351,12 @@ public class TicketService {
         comment.setAuthor(actor);
         comment.setContent(request.content().trim());
         comment = ticketCommentRepository.save(comment);
+        notifyTicketStakeholders(
+                ticket,
+                actor,
+                "New comment on ticket #" + ticket.getId(),
+                actor.getFullName() + " added a comment on \"" + ticket.getTitle() + "\".",
+                NotificationType.COMMENT);
         return toCommentResponse(comment);
     }
 
@@ -405,6 +448,44 @@ public class TicketService {
         String path = fileStorageService.store(image);
         ticket.setAfterImagePath(path);
         Ticket saved = ticketRepository.save(ticket);
+        notifyTicketStakeholders(
+                saved,
+                actor,
+                "After photo uploaded for ticket #" + saved.getId(),
+                "After-repair photo is now available for \"" + saved.getTitle() + "\".",
+                NotificationType.TICKET_UPDATE);
         return TicketMapper.toResponse(saved);
+    }
+
+    private void notifyAdmins(String title, String message, NotificationType type, String linkUrl) {
+        notificationDispatchService.notifyUsers(userRepository.findByRole(Role.ADMIN), title, message, type, linkUrl);
+    }
+
+    private void notifyTicketStakeholders(Ticket ticket, User actor, String title, String message) {
+        notifyTicketStakeholders(ticket, actor, title, message, NotificationType.TICKET_UPDATE);
+    }
+
+    private void notifyTicketStakeholders(
+            Ticket ticket,
+            User actor,
+            String title,
+            String message,
+            NotificationType type) {
+        List<User> recipients = new ArrayList<>();
+        recipients.add(ticket.getCreatedBy());
+        recipients.add(ticket.getAssignedTo());
+        recipients.addAll(userRepository.findByRole(Role.ADMIN));
+
+        Long actorId = actor == null ? null : actor.getId();
+        Set<Long> seen = new HashSet<>();
+        recipients.stream()
+                .filter(user -> user != null && user.getId() != null)
+                .filter(user -> actorId == null || !Objects.equals(user.getId(), actorId))
+                .filter(user -> seen.add(user.getId()))
+                .forEach(user -> notificationDispatchService.notifyUser(user, title, message, type, ticketLink(ticket)));
+    }
+
+    private String ticketLink(Ticket ticket) {
+        return "/tickets/" + ticket.getId();
     }
 }

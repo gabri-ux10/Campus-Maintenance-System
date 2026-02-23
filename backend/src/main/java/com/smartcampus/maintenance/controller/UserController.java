@@ -1,6 +1,7 @@
 package com.smartcampus.maintenance.controller;
 
-import com.smartcampus.maintenance.dto.user.CreateStaffRequest;
+import com.smartcampus.maintenance.dto.user.StaffInviteRequest;
+import com.smartcampus.maintenance.dto.user.StaffInviteResponse;
 import com.smartcampus.maintenance.dto.user.UserSummaryResponse;
 import com.smartcampus.maintenance.dto.user.UserWithTicketCountResponse;
 import com.smartcampus.maintenance.entity.User;
@@ -42,8 +43,8 @@ public class UserController {
 
     @PostMapping("/staff")
     @ResponseStatus(HttpStatus.CREATED)
-    public UserSummaryResponse createStaff(@Valid @RequestBody CreateStaffRequest request) {
+    public StaffInviteResponse createStaff(@Valid @RequestBody StaffInviteRequest request) {
         User actor = currentUserService.requireCurrentUser();
-        return userService.createStaffUser(actor, request);
+        return userService.inviteStaffUser(actor, request);
     }
 }

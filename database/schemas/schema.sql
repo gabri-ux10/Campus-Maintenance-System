@@ -40,6 +40,26 @@ CREATE TABLE email_verification_tokens (
   CONSTRAINT fk_email_verification_tokens_user_id FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE staff_invites (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  token_hash VARCHAR(64) NOT NULL,
+  username VARCHAR(50) NOT NULL,
+  email VARCHAR(120) NOT NULL,
+  full_name VARCHAR(120) NOT NULL,
+  invited_by BIGINT NOT NULL,
+  expires_at DATETIME(6) NOT NULL,
+  used BIT(1) NOT NULL DEFAULT b'0',
+  accepted_at DATETIME(6) DEFAULT NULL,
+  created_at DATETIME(6) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_staff_invites_token_hash (token_hash),
+  KEY idx_staff_invites_username (username),
+  KEY idx_staff_invites_email (email),
+  KEY idx_staff_invites_used (used),
+  KEY idx_staff_invites_expires_at (expires_at),
+  CONSTRAINT fk_staff_invites_invited_by FOREIGN KEY (invited_by) REFERENCES users (id)
+) ENGINE=InnoDB;
+
 CREATE TABLE buildings (
   id BIGINT NOT NULL AUTO_INCREMENT,
   name VARCHAR(100) NOT NULL,
@@ -196,4 +216,22 @@ CREATE TABLE password_reset_tokens (
   KEY idx_password_reset_tokens_used (used),
   KEY idx_password_reset_tokens_expires_at (expires_at),
   CONSTRAINT fk_password_reset_tokens_user_id FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE=InnoDB;
+
+CREATE TABLE email_outbox (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  to_email VARCHAR(254) NOT NULL,
+  subject VARCHAR(200) NOT NULL,
+  plain_text_body LONGTEXT NOT NULL,
+  html_body LONGTEXT DEFAULT NULL,
+  status VARCHAR(20) NOT NULL,
+  attempt_count INT NOT NULL DEFAULT 0,
+  last_attempt_at DATETIME(6) DEFAULT NULL,
+  next_attempt_at DATETIME(6) NOT NULL,
+  sent_at DATETIME(6) DEFAULT NULL,
+  last_error VARCHAR(500) DEFAULT NULL,
+  created_at DATETIME(6) NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_email_outbox_status_next_attempt (status, next_attempt_at),
+  KEY idx_email_outbox_created_at (created_at)
 ) ENGINE=InnoDB;

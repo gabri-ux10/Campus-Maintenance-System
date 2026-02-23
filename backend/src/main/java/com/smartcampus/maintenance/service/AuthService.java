@@ -1,8 +1,10 @@
 package com.smartcampus.maintenance.service;
 
 import com.smartcampus.maintenance.dto.auth.AuthResponse;
+import com.smartcampus.maintenance.dto.auth.AcceptStaffInviteRequest;
 import com.smartcampus.maintenance.dto.auth.LoginRequest;
 import com.smartcampus.maintenance.dto.auth.RegisterRequest;
+import com.smartcampus.maintenance.entity.StaffInvite;
 import com.smartcampus.maintenance.entity.EmailVerificationToken;
 import com.smartcampus.maintenance.entity.PasswordResetToken;
 import com.smartcampus.maintenance.entity.User;
@@ -12,15 +14,12 @@ import com.smartcampus.maintenance.exception.ConflictException;
 import com.smartcampus.maintenance.exception.UnauthorizedException;
 import com.smartcampus.maintenance.repository.EmailVerificationTokenRepository;
 import com.smartcampus.maintenance.repository.PasswordResetTokenRepository;
+import com.smartcampus.maintenance.repository.StaffInviteRepository;
 import com.smartcampus.maintenance.repository.UserRepository;
 import com.smartcampus.maintenance.security.JwtService;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Base64;
-import java.util.HexFormat;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -43,6 +42,10 @@ public class AuthService {
     private final JwtService jwtService;
     private final PasswordResetTokenRepository resetTokenRepository;
     private final EmailVerificationTokenRepository verificationTokenRepository;
+    private final StaffInviteRepository staffInviteRepository;
+    private final UserService userService;
+    private final PasswordPolicyService passwordPolicyService;
+    private final TokenHashService tokenHashService;
     private final EmailService emailService;
     private final String frontendBaseUrl;
     private final long verificationCodeTtlMinutes;
@@ -60,6 +63,10 @@ public class AuthService {
             JwtService jwtService,
             PasswordResetTokenRepository resetTokenRepository,
             EmailVerificationTokenRepository verificationTokenRepository,
+            StaffInviteRepository staffInviteRepository,
+            UserService userService,
+            PasswordPolicyService passwordPolicyService,
+            TokenHashService tokenHashService,
             EmailService emailService,
             @Value("${app.frontend.base-url:http://localhost:5173}") String frontendBaseUrl,
             @Value("${app.auth.verification-code-ttl-minutes:15}") long verificationCodeTtlMinutes,
@@ -74,6 +81,10 @@ public class AuthService {
         this.jwtService = jwtService;
         this.resetTokenRepository = resetTokenRepository;
         this.verificationTokenRepository = verificationTokenRepository;
+        this.staffInviteRepository = staffInviteRepository;
+        this.userService = userService;
+        this.passwordPolicyService = passwordPolicyService;
+        this.tokenHashService = tokenHashService;
         this.emailService = emailService;
         this.frontendBaseUrl = frontendBaseUrl;
         this.verificationCodeTtlMinutes = verificationCodeTtlMinutes;
@@ -108,12 +119,14 @@ public class AuthService {
         String email = request.email().trim().toLowerCase();
         String fullName = request.fullName().trim();
 
-        if (userRepository.existsByUsername(username)) {
-            throw new ConflictException("Username is already in use");
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
+            List<String> suggestions = userService.suggestAvailableUsernames(username, fullName, 5);
+            throw new ConflictException("Username is already in use. Try: " + String.join(", ", suggestions));
         }
-        if (userRepository.existsByEmail(email)) {
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new ConflictException("Email is already in use");
         }
+        passwordPolicyService.enforce(request.password(), username, email, fullName);
 
         User user = new User();
         user.setUsername(username);
@@ -222,7 +235,7 @@ public class AuthService {
 
             String rawToken = generateUniqueResetToken();
             PasswordResetToken resetToken = new PasswordResetToken();
-            resetToken.setToken(hashToken(rawToken));
+            resetToken.setToken(tokenHashService.hashSha256(rawToken));
             resetToken.setUser(user);
             resetToken.setExpiresAt(LocalDateTime.now().plusMinutes(resetTokenTtlMinutes));
             resetTokenRepository.save(resetToken);
@@ -237,7 +250,7 @@ public class AuthService {
 
     @Transactional
     public void resetPassword(String token, String newPassword) {
-        String tokenHash = hashToken(token.trim());
+        String tokenHash = tokenHashService.hashSha256(token.trim());
         PasswordResetToken resetToken = resetTokenRepository.findByTokenAndUsedFalse(tokenHash)
                 .orElseThrow(() -> new BadRequestException("Invalid or expired reset token."));
 
@@ -249,6 +262,7 @@ public class AuthService {
         if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
             throw new BadRequestException("New password must be different from your current password.");
         }
+        passwordPolicyService.enforce(newPassword, user.getUsername(), user.getEmail(), user.getFullName());
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
@@ -258,6 +272,49 @@ public class AuthService {
 
         emailService.sendPasswordChangedEmail(user.getFullName(), user.getEmail(), buildLoginUrl());
         log.info("Password successfully reset for user: {}", user.getUsername());
+    }
+
+    @Transactional
+    public void acceptStaffInvite(AcceptStaffInviteRequest request) {
+        String rawToken = request.token().trim();
+        StaffInvite invite = staffInviteRepository
+                .findByTokenHashAndUsedFalse(tokenHashService.hashSha256(rawToken))
+                .orElseThrow(() -> new BadRequestException("Invalid or expired invite token."));
+
+        if (invite.isExpired()) {
+            invite.setUsed(true);
+            staffInviteRepository.save(invite);
+            throw new BadRequestException("This invite has expired. Ask an admin to send a new one.");
+        }
+
+        if (userRepository.existsByUsernameIgnoreCase(invite.getUsername())) {
+            throw new ConflictException("Username is already in use. Ask an admin to issue a new invite.");
+        }
+        if (userRepository.existsByEmailIgnoreCase(invite.getEmail())) {
+            throw new ConflictException("Email is already in use. Ask an admin to issue a new invite.");
+        }
+
+        passwordPolicyService.enforce(request.password(), invite.getUsername(), invite.getEmail(), invite.getFullName());
+
+        User user = new User();
+        user.setUsername(invite.getUsername());
+        user.setEmail(invite.getEmail());
+        user.setFullName(invite.getFullName());
+        user.setRole(Role.MAINTENANCE);
+        user.setEmailVerified(true);
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        userRepository.save(user);
+
+        invite.setUsed(true);
+        invite.setAcceptedAt(LocalDateTime.now());
+        staffInviteRepository.save(invite);
+
+        emailService.sendWelcomeEmail(user.getFullName(), user.getEmail(), buildLoginUrl());
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> getUsernameSuggestions(String preferredUsername, String fullName) {
+        return userService.suggestAvailableUsernames(preferredUsername, fullName, 8);
     }
 
     private AuthResponse buildAuthResponse(User user) {
@@ -293,18 +350,12 @@ public class AuthService {
 
     private String generateUniqueResetToken() {
         for (int i = 0; i < 5; i++) {
-            String rawToken = generateTokenValue();
-            if (!resetTokenRepository.existsByToken(hashToken(rawToken))) {
+            String rawToken = tokenHashService.generateUrlToken(32);
+            if (!resetTokenRepository.existsByToken(tokenHashService.hashSha256(rawToken))) {
                 return rawToken;
             }
         }
         throw new IllegalStateException("Unable to generate unique reset token");
-    }
-
-    private String generateTokenValue() {
-        byte[] bytes = new byte[32];
-        secureRandom.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     private void issueEmailVerificationCode(User user) {
@@ -347,16 +398,6 @@ public class AuthService {
             Thread.sleep(remainingMs);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    private String hashToken(String rawToken) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(rawToken.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 algorithm is not available", ex);
         }
     }
 }

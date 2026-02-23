@@ -25,4 +25,4 @@ Use this checklist before going live with real users.
 
 - Add CAPTCHA on `forgot-password` and `resend-verification` endpoints.
 - Add distributed rate limiting (Redis/API gateway) for multi-instance deployments.
-- Use an outbox queue + worker for resilient email retries.
+- Outbox queue + scheduler retries are implemented; tune retry/backoff and alerting thresholds for production.

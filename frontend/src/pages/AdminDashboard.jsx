@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import {
   Bar,
   BarChart,
@@ -41,6 +42,7 @@ import { UrgencyBadge } from "../components/Common/UrgencyBadge.jsx";
 import { TicketTimeline } from "../components/tickets/TicketTimeline.jsx";
 import { useAuth } from "../hooks/useAuth";
 import { analyticsService } from "../services/analyticsService";
+import { authService } from "../services/authService";
 import { ticketService } from "../services/ticketService";
 import { userService } from "../services/userService";
 import { CATEGORIES, STATUSES, URGENCY_LEVELS } from "../utils/constants";
@@ -92,9 +94,11 @@ export const AdminDashboard = () => {
 
   /* add staff state */
   const [showAddStaff, setShowAddStaff] = useState(false);
-  const [staffForm, setStaffForm] = useState({ username: "", email: "", fullName: "", password: "" });
+  const [staffForm, setStaffForm] = useState({ username: "", email: "", fullName: "" });
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffError, setStaffError] = useState("");
+  const [staffSuggestions, setStaffSuggestions] = useState([]);
+  const [staffSuggestionLoading, setStaffSuggestionLoading] = useState(false);
 
   /* ticket detail modal */
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -153,6 +157,23 @@ export const AdminDashboard = () => {
       setUsersError(err?.response?.data?.message || "Failed to load users.");
     } finally {
       setUsersLoading(false);
+    }
+  };
+
+  const fetchStaffSuggestions = async (usernameValue, fullNameValue) => {
+    const username = usernameValue?.trim();
+    if (!username || username.length < 3) {
+      setStaffSuggestions([]);
+      return;
+    }
+    setStaffSuggestionLoading(true);
+    try {
+      const suggestions = await authService.getUsernameSuggestions(username, fullNameValue || "");
+      setStaffSuggestions(suggestions);
+    } catch {
+      setStaffSuggestions([]);
+    } finally {
+      setStaffSuggestionLoading(false);
     }
   };
 
@@ -547,42 +568,95 @@ export const AdminDashboard = () => {
             </div>
 
             {/* Add Staff Modal */}
-            <Modal open={showAddStaff} title="Add Maintenance Staff" onClose={() => { setShowAddStaff(false); setStaffError(""); }}>
+            <Modal open={showAddStaff} title="Invite Maintenance Staff" onClose={() => { setShowAddStaff(false); setStaffError(""); setStaffSuggestions([]); }}>
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 setStaffLoading(true);
                 setStaffError("");
                 try {
-                  const newUser = await userService.createStaff(staffForm);
-                  setUsers((prev) => [...prev, { ...newUser, ticketCount: 0 }]);
-                  setStaffForm({ username: "", email: "", fullName: "", password: "" });
+                  await userService.createStaffInvite(staffForm);
+                  toast.success(`Invite sent to ${staffForm.email}.`);
+                  setStaffForm({ username: "", email: "", fullName: "" });
+                  setStaffSuggestions([]);
                   setShowAddStaff(false);
+                  await refreshUsers();
                 } catch (err) {
-                  setStaffError(err?.response?.data?.message || "Failed to create staff account.");
+                  const message = err?.response?.data?.message || "Failed to create staff invitation.";
+                  setStaffError(message);
+                  if (message.toLowerCase().includes("username")) {
+                    await fetchStaffSuggestions(staffForm.username, staffForm.fullName);
+                  }
                 } finally {
                   setStaffLoading(false);
                 }
               }} className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Username</label>
-                  <input required minLength={3} maxLength={50} value={staffForm.username} onChange={(e) => setStaffForm((p) => ({ ...p, username: e.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" placeholder="e.g. jmwangi" />
+                  <input
+                    required
+                    minLength={3}
+                    maxLength={50}
+                    autoComplete="username"
+                    name="username"
+                    value={staffForm.username}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setStaffForm((p) => ({ ...p, username: next }));
+                      setStaffSuggestions([]);
+                    }}
+                    onBlur={() => fetchStaffSuggestions(staffForm.username, staffForm.fullName)}
+                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30"
+                    placeholder="e.g. jmwangi"
+                  />
+                  {staffSuggestionLoading && (
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Checking username suggestions...</p>
+                  )}
+                  {staffSuggestions.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {staffSuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => setStaffForm((p) => ({ ...p, username: suggestion }))}
+                          className="rounded-full bg-campus-50 px-3 py-1 text-xs font-semibold text-campus-600 transition hover:bg-campus-100 dark:bg-campus-900/20 dark:text-campus-400 dark:hover:bg-campus-900/30"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Full Name</label>
-                  <input required maxLength={120} value={staffForm.fullName} onChange={(e) => setStaffForm((p) => ({ ...p, fullName: e.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" placeholder="e.g. James Mwangi" />
+                  <input
+                    required
+                    maxLength={120}
+                    autoComplete="name"
+                    name="fullName"
+                    value={staffForm.fullName}
+                    onChange={(e) => setStaffForm((p) => ({ ...p, fullName: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30"
+                    placeholder="e.g. James Mwangi"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Email</label>
-                  <input required type="email" value={staffForm.email} onChange={(e) => setStaffForm((p) => ({ ...p, email: e.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" placeholder="e.g. jmwangi@campus.local" />
+                  <input
+                    required
+                    type="email"
+                    autoComplete="email"
+                    name="email"
+                    value={staffForm.email}
+                    onChange={(e) => setStaffForm((p) => ({ ...p, email: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30"
+                    placeholder="e.g. jmwangi@campus.local"
+                  />
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Password</label>
-                  <input required type="password" minLength={8} maxLength={120} value={staffForm.password} onChange={(e) => setStaffForm((p) => ({ ...p, password: e.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" placeholder="Minimum 8 characters" />
-                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">An invite link will be emailed. The staff member sets their own password during activation.</p>
                 {staffError && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{staffError}</p>}
                 <div className="flex items-center gap-3 pt-2">
-                  <button disabled={staffLoading} className="btn-primary">{staffLoading ? "Creating..." : "Create Staff Account"}</button>
-                  <button type="button" onClick={() => { setShowAddStaff(false); setStaffError(""); }} className="btn-ghost">Cancel</button>
+                  <button disabled={staffLoading} className="btn-primary">{staffLoading ? "Sending Invite..." : "Send Invite"}</button>
+                  <button type="button" onClick={() => { setShowAddStaff(false); setStaffError(""); setStaffSuggestions([]); }} className="btn-ghost">Cancel</button>
                 </div>
               </form>
             </Modal>

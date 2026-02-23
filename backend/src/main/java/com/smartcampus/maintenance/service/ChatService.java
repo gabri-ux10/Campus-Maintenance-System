@@ -5,13 +5,18 @@ import com.smartcampus.maintenance.dto.chat.ChatSendRequest;
 import com.smartcampus.maintenance.entity.ChatMessage;
 import com.smartcampus.maintenance.entity.Ticket;
 import com.smartcampus.maintenance.entity.User;
+import com.smartcampus.maintenance.entity.enums.NotificationType;
 import com.smartcampus.maintenance.entity.enums.Role;
 import com.smartcampus.maintenance.exception.ForbiddenException;
 import com.smartcampus.maintenance.exception.NotFoundException;
 import com.smartcampus.maintenance.repository.ChatMessageRepository;
 import com.smartcampus.maintenance.repository.TicketRepository;
+import com.smartcampus.maintenance.repository.UserRepository;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +25,18 @@ public class ChatService {
 
     private final ChatMessageRepository chatMessageRepository;
     private final TicketRepository ticketRepository;
+    private final UserRepository userRepository;
+    private final NotificationDispatchService notificationDispatchService;
 
-    public ChatService(ChatMessageRepository chatMessageRepository, TicketRepository ticketRepository) {
+    public ChatService(
+            ChatMessageRepository chatMessageRepository,
+            TicketRepository ticketRepository,
+            UserRepository userRepository,
+            NotificationDispatchService notificationDispatchService) {
         this.chatMessageRepository = chatMessageRepository;
         this.ticketRepository = ticketRepository;
+        this.userRepository = userRepository;
+        this.notificationDispatchService = notificationDispatchService;
     }
 
     @Transactional
@@ -36,6 +49,7 @@ public class ChatService {
         message.setSender(actor);
         message.setContent(request.content().trim());
         message = chatMessageRepository.save(message);
+        notifyChatParticipants(ticket, actor, message.getContent());
         return toResponse(message);
     }
 
@@ -69,5 +83,26 @@ public class ChatService {
                 m.getId(), m.getTicket().getId(),
                 m.getSender().getUsername(), m.getSender().getFullName(),
                 m.getSender().getRole().name(), m.getContent(), m.getCreatedAt());
+    }
+
+    private void notifyChatParticipants(Ticket ticket, User actor, String content) {
+        List<User> recipients = new ArrayList<>();
+        recipients.add(ticket.getCreatedBy());
+        recipients.add(ticket.getAssignedTo());
+        recipients.addAll(userRepository.findByRole(Role.ADMIN));
+
+        String preview = content.length() > 80 ? content.substring(0, 80) + "..." : content;
+        Long actorId = actor.getId();
+        Set<Long> seen = new HashSet<>();
+        recipients.stream()
+                .filter(user -> user != null && user.getId() != null)
+                .filter(user -> !Objects.equals(user.getId(), actorId))
+                .filter(user -> seen.add(user.getId()))
+                .forEach(user -> notificationDispatchService.notifyUser(
+                        user,
+                        "New chat message on ticket #" + ticket.getId(),
+                        actor.getFullName() + ": " + preview,
+                        NotificationType.CHAT,
+                        "/tickets/" + ticket.getId()));
     }
 }

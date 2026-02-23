@@ -25,4 +25,16 @@ export const authService = {
     const { data } = await apiClient.post("/auth/reset-password", { token, newPassword });
     return data;
   },
+  async acceptStaffInvite(token, password) {
+    const { data } = await apiClient.post("/auth/accept-staff-invite", { token, password });
+    return data;
+  },
+  async getUsernameSuggestions(username, fullName = "") {
+    const params = new URLSearchParams({ username });
+    if (fullName?.trim()) {
+      params.set("fullName", fullName.trim());
+    }
+    const { data } = await apiClient.get(`/auth/username-suggestions?${params.toString()}`);
+    return data?.suggestions || [];
+  },
 };

@@ -3,7 +3,9 @@ package com.smartcampus.maintenance.config;
 import com.smartcampus.maintenance.entity.Ticket;
 import com.smartcampus.maintenance.entity.TicketLog;
 import com.smartcampus.maintenance.entity.TicketRating;
+import com.smartcampus.maintenance.entity.Notification;
 import com.smartcampus.maintenance.entity.User;
+import com.smartcampus.maintenance.entity.enums.NotificationType;
 import com.smartcampus.maintenance.entity.enums.Role;
 import com.smartcampus.maintenance.entity.enums.TicketCategory;
 import com.smartcampus.maintenance.entity.enums.TicketStatus;
@@ -12,6 +14,7 @@ import com.smartcampus.maintenance.repository.TicketLogRepository;
 import com.smartcampus.maintenance.repository.TicketRatingRepository;
 import com.smartcampus.maintenance.repository.TicketRepository;
 import com.smartcampus.maintenance.repository.UserRepository;
+import com.smartcampus.maintenance.repository.NotificationRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +38,7 @@ public class DataSeeder {
         TicketRepository ticketRepository,
         TicketLogRepository ticketLogRepository,
         TicketRatingRepository ticketRatingRepository,
+        NotificationRepository notificationRepository,
         PasswordEncoder passwordEncoder,
         @Value("${app.seed.demo-data:true}") boolean seedDemoData,
         @Value("${app.seed.admin.username:admin}") String adminUsername,
@@ -249,6 +253,12 @@ public class DataSeeder {
 
             addRating(ticketRatingRepository, tickets.get(6), student1, 5, "Resolved quickly and professionally.");
             addRating(ticketRatingRepository, tickets.get(5), student2, 4, "Issue fixed, communication could be better.");
+            seedNotification(notificationRepository, admin, "New ticket submitted",
+                "Ticket #" + tickets.get(0).getId() + " requires review.", NotificationType.TICKET_UPDATE, "/tickets/" + tickets.get(0).getId());
+            seedNotification(notificationRepository, maintenance1, "Ticket assigned",
+                "You were assigned ticket #" + tickets.get(3).getId() + ".", NotificationType.ASSIGNMENT, "/tickets/" + tickets.get(3).getId());
+            seedNotification(notificationRepository, student1, "Ticket resolved",
+                "Your ticket #" + tickets.get(6).getId() + " has been resolved.", NotificationType.TICKET_UPDATE, "/tickets/" + tickets.get(6).getId());
             log.info("Seeded demo users and tickets.");
         };
     }
@@ -366,6 +376,23 @@ public class DataSeeder {
         rating.setStars(stars);
         rating.setComment(comment);
         ticketRatingRepository.save(rating);
+    }
+
+    private void seedNotification(
+        NotificationRepository notificationRepository,
+        User user,
+        String title,
+        String message,
+        NotificationType type,
+        String linkUrl
+    ) {
+        Notification notification = new Notification();
+        notification.setUser(user);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setType(type);
+        notification.setLinkUrl(linkUrl);
+        notificationRepository.save(notification);
     }
 
     private User createUser(

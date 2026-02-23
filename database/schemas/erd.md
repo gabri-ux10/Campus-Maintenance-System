@@ -16,6 +16,7 @@ erDiagram
     USERS ||--o{ TICKET_RATINGS : rates
     USERS ||--o{ PASSWORD_RESET_TOKENS : owns
     USERS ||--o{ EMAIL_VERIFICATION_TOKENS : owns
+    USERS ||--o{ STAFF_INVITES : issues
 
     TICKETS ||--o{ TICKET_LOGS : has
     TICKETS ||--o{ TICKET_COMMENTS : has
@@ -36,4 +37,6 @@ erDiagram
 - `support_requests`
 - `password_reset_tokens`
 - `email_verification_tokens`
+- `staff_invites`
+- `email_outbox`
 - `buildings`

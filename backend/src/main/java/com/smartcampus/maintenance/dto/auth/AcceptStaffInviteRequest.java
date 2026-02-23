@@ -3,8 +3,8 @@ package com.smartcampus.maintenance.dto.auth;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-public record ResetPasswordRequest(
+public record AcceptStaffInviteRequest(
         @NotBlank(message = "Token is required") String token,
 
-        @NotBlank(message = "New password is required") @Size(min = 10, max = 120, message = "Password must be 10-120 characters") String newPassword) {
+        @NotBlank(message = "Password is required") @Size(min = 10, max = 120, message = "Password must be 10-120 characters") String password) {
 }

@@ -10,6 +10,8 @@ Base URL: `http://localhost:8080/api`
 - `POST /auth/login`
 - `POST /auth/forgot-password`
 - `POST /auth/reset-password`
+- `POST /auth/accept-staff-invite`
+- `GET /auth/username-suggestions`
 - `GET /analytics/public-summary`
 - `GET /analytics/public-config`
 - `POST /public/contact-support`
@@ -35,7 +37,7 @@ Base URL: `http://localhost:8080/api`
 
 - `GET /users`
 - `GET /users/maintenance`
-- `POST /users/staff`
+- `POST /users/staff` (invites maintenance staff via email link)
 
 ## Other Authenticated Endpoints
 

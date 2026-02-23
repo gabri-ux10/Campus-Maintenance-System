@@ -25,16 +25,19 @@ public class EscalationScheduler {
     private final SlaService slaService;
     private final NotificationService notificationService;
     private final UserRepository userRepository;
+    private final EmailService emailService;
 
     public EscalationScheduler(
             TicketRepository ticketRepository,
             SlaService slaService,
             NotificationService notificationService,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            EmailService emailService) {
         this.ticketRepository = ticketRepository;
         this.slaService = slaService;
         this.notificationService = notificationService;
         this.userRepository = userRepository;
+        this.emailService = emailService;
     }
 
     /**
@@ -75,6 +78,7 @@ public class EscalationScheduler {
                                     + current + " to " + escalatedLevel + ".",
                             NotificationType.SLA_BREACH,
                             "/tickets/" + ticket.getId());
+                    emailService.sendSlaBreachEmail(admin.getEmail(), ticket.getTitle(), ticket.getId());
                 }
             }
         }

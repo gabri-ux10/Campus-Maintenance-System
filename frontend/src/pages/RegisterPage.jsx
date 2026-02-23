@@ -1,8 +1,10 @@
-import { Eye, EyeOff, Wrench, Zap, Shield, ChevronRight, UserPlus } from "lucide-react";
-import { useState } from "react";
+import { Eye, EyeOff, Wrench, Zap, Shield, UserPlus } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { authService } from "../services/authService";
 import { isEmail, minLength } from "../utils/validators";
+import { evaluatePassword } from "../utils/passwordPolicy";
 
 /* ---- Animated Logo ---- */
 const CampusFixLogo = () => (
@@ -34,14 +36,33 @@ export const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [usernameSuggestions, setUsernameSuggestions] = useState([]);
+
+  const passwordState = useMemo(
+    () => evaluatePassword(form.password, { username: form.username, email: form.email, fullName: form.fullName }),
+    [form.password, form.username, form.email, form.fullName]
+  );
 
   const validate = () => {
     if (!minLength(form.username, 3)) return "Username must be at least 3 characters.";
     if (!isEmail(form.email)) return "Please enter a valid email.";
     if (!form.fullName.trim()) return "Full name is required.";
-    if (!minLength(form.password, 8)) return "Password must be at least 8 characters.";
+    if (!passwordState.valid) return passwordState.messages[0] || "Password does not meet policy.";
     if (form.password !== form.confirmPassword) return "Passwords do not match.";
     return "";
+  };
+
+  const fetchUsernameSuggestions = async () => {
+    if (!minLength(form.username, 3)) {
+      setUsernameSuggestions([]);
+      return;
+    }
+    try {
+      const suggestions = await authService.getUsernameSuggestions(form.username, form.fullName);
+      setUsernameSuggestions(suggestions);
+    } catch {
+      setUsernameSuggestions([]);
+    }
   };
 
   const submit = async (event) => {
@@ -63,6 +84,9 @@ export const RegisterPage = () => {
       navigate(`/verify-email?email=${encodeURIComponent(form.email.trim().toLowerCase())}`, { replace: true });
     } catch (err) {
       setError(err.message);
+      if ((err.message || "").toLowerCase().includes("username")) {
+        await fetchUsernameSuggestions();
+      }
     } finally {
       setLoading(false);
     }
@@ -101,10 +125,28 @@ export const RegisterPage = () => {
               <input
                 value={form.username}
                 onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
+                onBlur={fetchUsernameSuggestions}
                 className={inputClass}
                 placeholder="Enter username"
+                autoComplete="username"
+                autoCapitalize="off"
+                spellCheck={false}
                 required
               />
+              {usernameSuggestions.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {usernameSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, username: suggestion }))}
+                      className="rounded-full bg-campus-50 px-3 py-1 text-xs font-semibold text-campus-600 transition hover:bg-campus-100 dark:bg-campus-900/20 dark:text-campus-400 dark:hover:bg-campus-900/30"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <label className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-700 dark:text-gray-300">Email</label>
@@ -114,6 +156,7 @@ export const RegisterPage = () => {
                 onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                 className={inputClass}
                 placeholder="Enter email"
+                autoComplete="email"
                 required
               />
             </div>
@@ -127,6 +170,7 @@ export const RegisterPage = () => {
               onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
               className={inputClass}
               placeholder="Enter full name"
+              autoComplete="name"
               required
             />
           </div>
@@ -142,6 +186,7 @@ export const RegisterPage = () => {
                   onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
                   className="w-full rounded-l-xl bg-transparent px-4 py-2.5 text-sm outline-none dark:text-white"
                   placeholder="Enter password"
+                  autoComplete="new-password"
                   required
                 />
                 <button
@@ -161,15 +206,44 @@ export const RegisterPage = () => {
                 onChange={(e) => setForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
                 className={inputClass}
                 placeholder="Confirm password"
+                autoComplete="new-password"
                 required
               />
             </div>
           </div>
 
-          {/* Password strength hint */}
-          <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
-            Password must be at least 8 characters long
-          </p>
+          {form.password && (
+            <div className="mt-3">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800">
+                <div
+                  className={`h-full transition-all duration-200 ${
+                    passwordState.level === "high"
+                      ? "w-full bg-emerald-500"
+                      : passwordState.level === "medium"
+                      ? "w-2/3 bg-orange-500"
+                      : "w-1/3 bg-red-500"
+                  }`}
+                />
+              </div>
+              <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                Password strength:{" "}
+                <span
+                  className={
+                    passwordState.level === "high"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : passwordState.level === "medium"
+                      ? "text-orange-600 dark:text-orange-400"
+                      : "text-red-600 dark:text-red-400"
+                  }
+                >
+                  {passwordState.level.toUpperCase()}
+                </span>
+              </p>
+              {!passwordState.valid && (
+                <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">{passwordState.messages[0]}</p>
+              )}
+            </div>
+          )}
 
           {/* Error */}
           {error && (

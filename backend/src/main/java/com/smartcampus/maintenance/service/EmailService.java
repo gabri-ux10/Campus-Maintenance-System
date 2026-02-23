@@ -1,41 +1,21 @@
 package com.smartcampus.maintenance.service;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
-import java.nio.charset.StandardCharsets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.mail.MailException;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
 public class EmailService {
 
-    private static final Logger log = LoggerFactory.getLogger(EmailService.class);
-
-    private final JavaMailSender javaMailSender;
-    private final boolean emailEnabled;
-    private final String fromAddress;
+    private final EmailOutboxService emailOutboxService;
     private final String supportInbox;
     private final String frontendBaseUrl;
-    private static final String LOGO_CID = "campusfixLogo";
 
     public EmailService(
-            @Autowired(required = false) JavaMailSender javaMailSender,
-            @Value("${app.email.enabled:false}") boolean emailEnabled,
-            @Value("${app.email.from:campusfixsystems@gmail.com}") String fromAddress,
+            EmailOutboxService emailOutboxService,
             @Value("${app.email.support-inbox:${app.email.from:campusfixsystems@gmail.com}}") String supportInbox,
             @Value("${app.frontend.base-url:http://localhost:5173}") String frontendBaseUrl) {
-        this.javaMailSender = javaMailSender;
-        this.emailEnabled = emailEnabled;
-        this.fromAddress = fromAddress;
+        this.emailOutboxService = emailOutboxService;
         this.supportInbox = supportInbox;
         this.frontendBaseUrl = frontendBaseUrl;
     }
@@ -82,6 +62,28 @@ public class EmailService {
                 """.formatted(displayName(fullName), verificationCode, expiresInMinutes, verifyUrl);
 
         sendHtmlEmail(toEmail, "CampusFix: Verify Your Email", text, html);
+    }
+
+    public void sendStaffInviteEmail(String fullName, String toEmail, String acceptUrl, long expiresInHours) {
+        String html = buildBrandedHtml(
+                "CampusFix staff invitation",
+                "You have been invited to CampusFix",
+                "Use the secure button below to set your password and activate your maintenance account.",
+                null,
+                "Accept Invitation",
+                acceptUrl,
+                "This invitation expires in " + expiresInHours + " hour(s).");
+
+        String text = """
+                Hi %s,
+
+                You were invited to join CampusFix as maintenance staff.
+                Accept invitation: %s
+
+                This invitation expires in %d hour(s).
+                """.formatted(displayName(fullName), acceptUrl, expiresInHours);
+
+        sendHtmlEmail(toEmail, "CampusFix: Staff Invitation", text, html);
     }
 
     public void sendTicketCreatedEmail(String toEmail, String ticketTitle, Long ticketId) {
@@ -163,68 +165,11 @@ public class EmailService {
     }
 
     private void sendPlainEmail(String to, String subject, String body) {
-        if (!emailEnabled) {
-            log.info("[EMAIL STUB] To: {}, Subject: {}, Body: {}", to, subject, body);
-            return;
-        }
-        if (!canSend(to, subject)) {
-            return;
-        }
-
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromAddress);
-            message.setTo(to);
-            message.setSubject(subject);
-            message.setText(body);
-            javaMailSender.send(message);
-            log.info("Email sent to {} with subject '{}'", to, subject);
-        } catch (MailException ex) {
-            log.error("Failed to send email to {} with subject '{}': {}", to, subject, ex.getMessage());
-        }
+        emailOutboxService.enqueue(to, subject, body, null);
     }
 
     private void sendHtmlEmail(String to, String subject, String plainText, String html) {
-        if (!emailEnabled) {
-            log.info("[EMAIL STUB] To: {}, Subject: {}, Body: {}", to, subject, plainText);
-            return;
-        }
-        if (!canSend(to, subject)) {
-            return;
-        }
-
-        try {
-            MimeMessage message = javaMailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(fromAddress);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(plainText, html);
-            ClassPathResource logo = new ClassPathResource("email-assets/campusfix-logo.png");
-            if (logo.exists()) {
-                helper.addInline(LOGO_CID, logo, "image/png");
-            }
-            javaMailSender.send(message);
-            log.info("Email sent to {} with subject '{}'", to, subject);
-        } catch (MailException | MessagingException ex) {
-            log.error("Failed to send email to {} with subject '{}': {}", to, subject, ex.getMessage());
-        }
-    }
-
-    private boolean canSend(String to, String subject) {
-        if (!StringUtils.hasText(fromAddress)) {
-            log.warn("Skipping email send because from address is blank. Subject: {}", subject);
-            return false;
-        }
-        if (!StringUtils.hasText(to)) {
-            log.warn("Skipping email send because recipient address is blank. Subject: {}", subject);
-            return false;
-        }
-        if (javaMailSender == null) {
-            log.warn("Skipping email send because JavaMailSender is not configured. Subject: {}", subject);
-            return false;
-        }
-        return true;
+        emailOutboxService.enqueue(to, subject, plainText, html);
     }
 
     private String buildBrandedHtml(
@@ -264,7 +209,7 @@ public class EmailService {
                           <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background:#FFFFFF;border-radius:14px;overflow:hidden;border:1px solid #E2E8F0;">
                             <tr>
                               <td style="padding:20px 24px;background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#FFFFFF;">
-                                <img src="cid:%s" alt="CampusFix" style="height:40px;width:auto;display:block;">
+                                <div style="font-size:20px;font-weight:700;letter-spacing:0.2px;">CampusFix</div>
                               </td>
                             </tr>
                             <tr>
@@ -288,7 +233,7 @@ public class EmailService {
                     </table>
                   </body>
                 </html>
-                """.formatted(LOGO_CID, safeTitle, safeHeading, safeIntro, codeBlock, ctaBlock, safeNote);
+                """.formatted(safeTitle, safeHeading, safeIntro, codeBlock, ctaBlock, safeNote);
     }
 
     private String displayName(String fullName) {

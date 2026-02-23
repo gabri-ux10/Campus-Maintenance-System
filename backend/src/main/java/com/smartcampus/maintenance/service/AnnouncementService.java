@@ -4,10 +4,12 @@ import com.smartcampus.maintenance.dto.announcement.AnnouncementCreateRequest;
 import com.smartcampus.maintenance.dto.announcement.AnnouncementResponse;
 import com.smartcampus.maintenance.entity.Announcement;
 import com.smartcampus.maintenance.entity.User;
+import com.smartcampus.maintenance.entity.enums.NotificationType;
 import com.smartcampus.maintenance.entity.enums.Role;
 import com.smartcampus.maintenance.exception.ForbiddenException;
 import com.smartcampus.maintenance.exception.NotFoundException;
 import com.smartcampus.maintenance.repository.AnnouncementRepository;
+import com.smartcampus.maintenance.repository.UserRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,9 +18,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class AnnouncementService {
 
     private final AnnouncementRepository announcementRepository;
+    private final UserRepository userRepository;
+    private final NotificationDispatchService notificationDispatchService;
 
-    public AnnouncementService(AnnouncementRepository announcementRepository) {
+    public AnnouncementService(
+            AnnouncementRepository announcementRepository,
+            UserRepository userRepository,
+            NotificationDispatchService notificationDispatchService) {
         this.announcementRepository = announcementRepository;
+        this.userRepository = userRepository;
+        this.notificationDispatchService = notificationDispatchService;
     }
 
     @Transactional(readOnly = true)
@@ -43,8 +52,19 @@ public class AnnouncementService {
         a.setTitle(request.title().trim());
         a.setContent(request.content().trim());
         a.setCreatedBy(actor);
-        a = announcementRepository.save(a);
-        return toResponse(a);
+        Announcement saved = announcementRepository.save(a);
+        User adminActor = actor;
+        Long actorId = adminActor.getId();
+        String preview = saved.getContent().length() > 400 ? saved.getContent().substring(0, 400) + "..." : saved.getContent();
+        userRepository.findAll().stream()
+                .filter(user -> user.getId() != null && !user.getId().equals(actorId))
+                .forEach(user -> notificationDispatchService.notifyUser(
+                        user,
+                        "New announcement: " + saved.getTitle(),
+                        preview,
+                        NotificationType.ANNOUNCEMENT,
+                        "/announcements"));
+        return toResponse(saved);
     }
 
     @Transactional
