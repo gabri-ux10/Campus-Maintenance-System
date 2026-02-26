@@ -22,6 +22,7 @@ import { Modal } from "../components/Common/Modal.jsx";
 import { StatusBadge } from "../components/Common/StatusBadge.jsx";
 import { UrgencyBadge } from "../components/Common/UrgencyBadge.jsx";
 import { UserAvatar } from "../components/Common/UserAvatar.jsx";
+import { DashboardHero, DashboardStatGrid } from "../components/Dashboard/DashboardPrimitives.jsx";
 import { TicketTimeline } from "../components/tickets/TicketTimeline.jsx";
 import { useAuth } from "../hooks/useAuth";
 import { useTickets } from "../hooks/useTickets";
@@ -75,7 +76,7 @@ const TicketTracker = ({ ticket }) => {
   const isRejected = ticket.status === "REJECTED";
 
   return (
-    <article className="saas-card interactive-surface">
+    <article className="dashboard-panel saas-card interactive-surface">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Active Ticket Tracker</h3>
         <span className="pill-badge bg-campus-50 text-campus-600 dark:bg-campus-900/20 dark:text-campus-400">#{ticket.id}</span>
@@ -142,8 +143,19 @@ export const StudentDashboard = () => {
     const total = tickets.length;
     const pending = tickets.filter((t) => !["RESOLVED", "CLOSED", "REJECTED"].includes(t.status)).length;
     const resolved = tickets.filter((t) => ["RESOLVED", "CLOSED"].includes(t.status)).length;
-    return { total, pending, resolved };
+    const rejected = tickets.filter((t) => t.status === "REJECTED").length;
+    return { total, pending, resolved, rejected };
   }, [tickets]);
+
+  const statCards = useMemo(
+    () => [
+      { label: "Total Submitted", value: stats.total, icon: FileText, tone: "info" },
+      { label: "In Progress", value: stats.pending, icon: Clock, tone: "warning" },
+      { label: "Resolved", value: stats.resolved, icon: CheckCircle2, tone: "success" },
+      { label: "Rejected", value: stats.rejected, icon: ShieldAlert, tone: "danger" },
+    ],
+    [stats]
+  );
 
   const latestActiveTicket = useMemo(
     () => tickets.find((t) => !["RESOLVED", "CLOSED", "REJECTED"].includes(t.status)) || tickets[0],
@@ -268,13 +280,10 @@ export const StudentDashboard = () => {
 
   return (
     <div className="dashboard-shell space-y-6 animate-fade-in">
-      {/* ---- Welcome Banner ---- */}
-      <section id="dashboard" data-dashboard-section="true" className="motion-section relative overflow-hidden rounded-2xl bg-gradient-to-br from-campus-500 via-campus-600 to-campus-800 p-6 text-white shadow-lg">
-        <div className="absolute -top-8 -right-8 h-40 w-40 rounded-full bg-white/10" />
-        <div className="absolute bottom-0 right-20 h-24 w-24 rounded-full bg-white/5" />
-        <div className="relative flex items-center justify-between">
+      <DashboardHero id="dashboard" tone="student">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="rounded-2xl bg-white/15 p-1 backdrop-blur-sm">
+            <div className="dashboard-avatar-wrap">
               <UserAvatar
                 fullName={auth?.fullName}
                 username={auth?.username}
@@ -286,46 +295,27 @@ export const StudentDashboard = () => {
               />
             </div>
             <div>
-              <h1 className="text-xl font-bold">{greeting}, {auth?.fullName || "Student"}</h1>
-              <p className="mt-0.5 text-sm text-blue-100">
+              <p className="dashboard-hero-eyebrow">Student Hub</p>
+              <h1 className="dashboard-hero-title">{greeting}, {auth?.fullName || "Student"}</h1>
+              <p className="dashboard-hero-subtitle">
                 Report campus issues and track their progress in real-time.
               </p>
             </div>
           </div>
           <button
             onClick={() => setShowForm(true)}
-            className="interactive-control hidden rounded-xl bg-white/20 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/30 sm:flex items-center gap-2"
+            className="dashboard-hero-button interactive-control hidden sm:flex items-center gap-2"
           >
             <Plus size={16} />
             Report Issue
           </button>
         </div>
-      </section>
+      </DashboardHero>
 
-      {/* ---- Stats Row (3 cards) ---- */}
-      <section className="motion-section motion-grid grid gap-4 sm:grid-cols-3">
-        {[
-          { label: "Total Submitted", value: stats.total, icon: FileText, color: "bg-blue-100 text-campus-600 dark:bg-blue-900/30 dark:text-blue-400" },
-          { label: "In Progress", value: stats.pending, icon: Clock, color: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" },
-          { label: "Resolved", value: stats.resolved, icon: CheckCircle2, color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" },
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <article key={item.label} className="saas-card interactive-surface flex items-center gap-4">
-              <div className={`icon-wrap ${item.color}`}>
-                <Icon size={22} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">{item.label}</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{item.value}</p>
-              </div>
-            </article>
-          );
-        })}
-      </section>
+      <DashboardStatGrid items={statCards} />
       {/* ---- Report Issue Form ---- */}
       {showForm && (
-        <section id="report" data-dashboard-section="true" className="motion-section saas-card interactive-surface animate-soft-rise">
+        <section id="report" data-dashboard-section="true" className="motion-section dashboard-panel saas-card interactive-surface animate-soft-rise">
           <form onSubmit={submitTicket} className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Title</label>
@@ -400,9 +390,9 @@ export const StudentDashboard = () => {
       )}
 
       {/* ---- Your Tickets ---- */}
-      <section id="tickets" data-dashboard-section="true" className="motion-section space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Your Tickets</h2>
+      <section id="tickets" data-dashboard-section="true" className="motion-section dashboard-panel saas-card interactive-surface">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Your Tickets</h3>
           <div className="flex items-center rounded-xl border border-gray-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900">
             <Search size={14} className="text-gray-400" />
             <input
@@ -413,45 +403,47 @@ export const StudentDashboard = () => {
             />
           </div>
         </div>
-        {loading && <LoadingSpinner label="Loading your tickets..." />}
-        {!loading && error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{error}</p>}
-        {!loading && !error && tickets.length === 0 && <EmptyState title="No tickets yet" message="Submit your first maintenance issue using the form above." />}
-        {!loading && !error && tickets.length > 0 && filteredTickets.length === 0 && <EmptyState title="No tickets match your search" message="Try another search term or clear filters." />}
-        {!loading && !error && filteredTickets.length > 0 && (
-          <div className="grid gap-4">
-            {filteredTickets.map((ticket) => {
-              const Icon = categoryIcon[ticket.category] || ClipboardList;
-              const colorClass = categoryColors[ticket.category] || categoryColors.OTHER;
-              return (
-                <button
-                  type="button"
-                  key={ticket.id}
-                  onClick={() => openTicket(ticket.id)}
-                  className="group saas-card interactive-surface interactive-control text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`icon-wrap ${colorClass}`}>
-                        <Icon size={20} />
+        <div className="space-y-4">
+          {loading && <LoadingSpinner label="Loading your tickets..." />}
+          {!loading && error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{error}</p>}
+          {!loading && !error && tickets.length === 0 && <EmptyState title="No tickets yet" message="Submit your first maintenance issue using the form above." />}
+          {!loading && !error && tickets.length > 0 && filteredTickets.length === 0 && <EmptyState title="No tickets match your search" message="Try another search term or clear filters." />}
+          {!loading && !error && filteredTickets.length > 0 && (
+            <div className="grid gap-4">
+              {filteredTickets.map((ticket) => {
+                const Icon = categoryIcon[ticket.category] || ClipboardList;
+                const colorClass = categoryColors[ticket.category] || categoryColors.OTHER;
+                return (
+                  <button
+                    type="button"
+                    key={ticket.id}
+                    onClick={() => openTicket(ticket.id)}
+                    className="group saas-card interactive-surface interactive-control text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`icon-wrap ${colorClass}`}>
+                          <Icon size={20} />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">{ticket.title}</h3>
+                          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{ticket.building}  |  {ticket.location}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">{ticket.title}</h3>
-                        <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{ticket.building}  |  {ticket.location}</p>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={ticket.status} />
+                        <UrgencyBadge urgency={ticket.urgency} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge status={ticket.status} />
-                      <UrgencyBadge urgency={ticket.urgency} />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
-                    {titleCase(ticket.category)}  |  Submitted {formatDate(ticket.createdAt)}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        )}
+                    <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+                      {titleCase(ticket.category)}  |  Submitted {formatDate(ticket.createdAt)}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </section>
 
       {/* ---- Ticket Detail Modal ---- */}
@@ -522,5 +514,4 @@ export const StudentDashboard = () => {
     </div>
   );
 };
-
 

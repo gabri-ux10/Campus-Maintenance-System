@@ -236,7 +236,7 @@ export const TopBar = ({ onMenuClick, activeSectionLabel }) => {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-2 rounded-xl border border-gray-200 bg-white/90 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/85 xl:flex">
+            <div className="dashboard-topbar-chip hidden items-center gap-2 xl:flex">
               <CalendarDays size={14} className="text-campus-500" />
               <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{todayLabel}</span>
               <span className="text-xs font-bold text-gray-900 dark:text-white">{timeLabel}</span>
@@ -245,7 +245,7 @@ export const TopBar = ({ onMenuClick, activeSectionLabel }) => {
             <button
               type="button"
               onClick={() => window.location.assign("/")}
-              className="interactive-control rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800"
+              className="dashboard-topbar-btn interactive-control rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800"
               title="Go to Home"
             >
               <Home size={18} />
@@ -256,7 +256,7 @@ export const TopBar = ({ onMenuClick, activeSectionLabel }) => {
                 ref={searchBtnRef}
                 type="button"
                 onClick={() => setShowSearch((prev) => !prev)}
-                className="interactive-control rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800"
+                className="dashboard-topbar-btn interactive-control rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800"
                 title="Search"
               >
                 <Search size={18} />
@@ -265,7 +265,7 @@ export const TopBar = ({ onMenuClick, activeSectionLabel }) => {
               {showSearch && (
                 <div
                   ref={searchRef}
-                  className="animate-slide-in-down absolute right-0 top-full z-40 mt-2 w-80 rounded-2xl border border-gray-200 bg-white p-3 shadow-dropdown dark:border-slate-700 dark:bg-slate-900"
+                  className="dashboard-search-popover animate-slide-in-down absolute right-0 top-full z-40 mt-2 w-80 rounded-2xl border border-gray-200 bg-white p-3 shadow-dropdown dark:border-slate-700 dark:bg-slate-900"
                 >
                   <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800">
                     <Search size={15} className="text-gray-400" />
@@ -294,7 +294,7 @@ export const TopBar = ({ onMenuClick, activeSectionLabel }) => {
                 ref={bellRef}
                 type="button"
                 onClick={() => setShowNotifications((prev) => !prev)}
-                className="interactive-control relative rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800"
+                className="dashboard-topbar-btn interactive-control relative rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800"
               >
                 <Bell size={18} />
                 {unreadCount > 0 && (
@@ -322,7 +322,7 @@ export const TopBar = ({ onMenuClick, activeSectionLabel }) => {
             <button
               type="button"
               onClick={toggleTheme}
-              className="interactive-control rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800"
+              className="dashboard-topbar-btn interactive-control rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800"
               title="Toggle theme"
             >
               {theme === "dark" ? <Sun size={18} className="text-gold" /> : <Moon size={18} />}
@@ -333,7 +333,7 @@ export const TopBar = ({ onMenuClick, activeSectionLabel }) => {
                 ref={userBtnRef}
                 type="button"
                 onClick={() => setShowUserMenu((prev) => !prev)}
-                className="interactive-control flex items-center gap-2 rounded-xl border border-gray-200 bg-white py-1.5 pl-1.5 pr-2.5 text-left dark:border-slate-700 dark:bg-slate-900"
+                className="dashboard-user-trigger interactive-control flex items-center gap-2 rounded-xl border border-gray-200 bg-white py-1.5 pl-1.5 pr-2.5 text-left dark:border-slate-700 dark:bg-slate-900"
               >
                 <UserAvatar
                   fullName={auth?.fullName}
@@ -353,7 +353,7 @@ export const TopBar = ({ onMenuClick, activeSectionLabel }) => {
               {showUserMenu && (
                 <div
                   ref={userMenuRef}
-                  className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-gray-200 bg-white p-2 shadow-dropdown dark:border-slate-700 dark:bg-slate-900"
+                  className="dashboard-user-menu absolute right-0 top-full mt-2 w-56 rounded-2xl border border-gray-200 bg-white p-2 shadow-dropdown dark:border-slate-700 dark:bg-slate-900"
                 >
                   <button
                     type="button"

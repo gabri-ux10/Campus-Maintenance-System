@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
+import { useAuth } from "../../hooks/useAuth";
 
 const COLLAPSED_KEY = "campusfix-sidebar-collapsed";
 const sectionLabels = {
@@ -18,6 +19,7 @@ const sectionLabels = {
 };
 
 export const DashboardShell = ({ children }) => {
+  const { auth } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("dashboard");
   const [activeSectionLabel, setActiveSectionLabel] = useState("Overview");
@@ -28,6 +30,7 @@ export const DashboardShell = ({ children }) => {
       return false;
     }
   });
+  const role = auth?.role?.toUpperCase() || "STUDENT";
 
   const toggleCollapse = () => {
     setCollapsed((prev) => {
@@ -107,7 +110,10 @@ export const DashboardShell = ({ children }) => {
   }, []);
 
   return (
-    <div className="dashboard-app min-h-screen bg-bg-light dark:bg-bg-dark">
+    <div
+      className={`dashboard-app dashboard-role-${role.toLowerCase()} min-h-screen bg-bg-light dark:bg-bg-dark`}
+      data-dashboard-role={role}
+    >
       <div className="dashboard-background" />
 
       <Sidebar

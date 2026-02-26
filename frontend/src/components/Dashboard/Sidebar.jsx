@@ -97,7 +97,7 @@ export const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse, activeSe
       {isOpen && <div className="fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-sm lg:hidden" onClick={onClose} />}
 
       <aside
-        className={`glass-sidebar fixed left-0 top-0 z-50 flex h-screen flex-col transition-all duration-300 ease-out lg:translate-x-0 ${
+        className={`dashboard-sidebar glass-sidebar fixed left-0 top-0 z-50 flex h-screen flex-col transition-all duration-300 ease-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } ${collapsed ? "w-sidebar-collapsed" : "w-sidebar"}`}
       >

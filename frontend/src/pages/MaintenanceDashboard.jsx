@@ -17,6 +17,7 @@ import { Modal } from "../components/Common/Modal.jsx";
 import { StatusBadge } from "../components/Common/StatusBadge.jsx";
 import { UrgencyBadge } from "../components/Common/UrgencyBadge.jsx";
 import { UserAvatar } from "../components/Common/UserAvatar.jsx";
+import { DashboardHero, DashboardStatGrid } from "../components/Dashboard/DashboardPrimitives.jsx";
 import { TicketTimeline } from "../components/tickets/TicketTimeline.jsx";
 import { useAuth } from "../hooks/useAuth";
 import { useTickets } from "../hooks/useTickets";
@@ -88,6 +89,16 @@ export const MaintenanceDashboard = () => {
     );
     return result;
   }, [activeTickets]);
+
+  const statCards = useMemo(
+    () => [
+      { label: "Assigned", value: activeTickets.filter((t) => t.status === "ASSIGNED").length, icon: FileText, tone: "info" },
+      { label: "In Progress", value: activeTickets.filter((t) => t.status === "IN_PROGRESS").length, icon: Loader2, tone: "warning" },
+      { label: "Resolved Today", value: resolvedToday, icon: CheckCheck, tone: "success" },
+      { label: "Total Resolved", value: resolvedTickets.length, icon: TrendingUp, tone: "campus" },
+    ],
+    [activeTickets, resolvedTickets.length, resolvedToday]
+  );
 
   const filteredActiveTickets = useMemo(() => {
     const query = ticketSearch.trim().toLowerCase();
@@ -215,13 +226,10 @@ export const MaintenanceDashboard = () => {
   /* ================================================================ */
   return (
     <div className="dashboard-shell space-y-6 animate-fade-in">
-      {/* ---- Welcome Banner ---- */}
-      <section id="dashboard" data-dashboard-section="true" className="motion-section relative overflow-hidden rounded-2xl bg-gradient-to-br from-campus-500 via-campus-600 to-campus-800 p-6 text-white shadow-lg">
-        <div className="absolute -top-8 -right-8 h-40 w-40 rounded-full bg-white/10" />
-        <div className="absolute bottom-0 right-20 h-24 w-24 rounded-full bg-white/5" />
-        <div className="relative flex items-center justify-between">
+      <DashboardHero id="dashboard" tone="maintenance">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="rounded-2xl bg-white/15 p-1 backdrop-blur-sm">
+            <div className="dashboard-avatar-wrap">
               <UserAvatar
                 fullName={auth?.fullName}
                 username={auth?.username}
@@ -233,14 +241,15 @@ export const MaintenanceDashboard = () => {
               />
             </div>
             <div>
-              <h1 className="text-xl font-bold">{greeting}, {auth?.fullName || "Staff"}</h1>
-              <p className="mt-0.5 text-sm text-blue-100">
+              <p className="dashboard-hero-eyebrow">Field Operations</p>
+              <h1 className="dashboard-hero-title">{greeting}, {auth?.fullName || "Staff"}</h1>
+              <p className="dashboard-hero-subtitle">
                 You have <span className="font-semibold text-white">{activeTickets.length} active tasks</span> in your work queue.
               </p>
             </div>
           </div>
           <div className="hidden sm:flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+            <div className="dashboard-hero-pill">
               <Timer size={14} />
               <span className="text-sm font-medium">
                 {queueHealth.overdue > 0 ? `Overdue: ${queueHealth.overdue}` : `At risk: ${queueHealth.atRisk}`}
@@ -248,30 +257,9 @@ export const MaintenanceDashboard = () => {
             </div>
           </div>
         </div>
-      </section>
+      </DashboardHero>
 
-      {/* ---- Stats Row (4 cards) ---- */}
-      <section className="motion-section motion-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: "Assigned", value: activeTickets.filter((t) => t.status === "ASSIGNED").length, icon: FileText, color: "bg-blue-100 text-campus-600 dark:bg-blue-900/30 dark:text-blue-400" },
-          { label: "In Progress", value: activeTickets.filter((t) => t.status === "IN_PROGRESS").length, icon: Loader2, color: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" },
-          { label: "Resolved Today", value: resolvedToday, icon: CheckCheck, color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" },
-          { label: "Total Resolved", value: resolvedTickets.length, icon: TrendingUp, color: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" },
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <article key={item.label} className="saas-card interactive-surface flex items-center gap-4">
-              <div className={`icon-wrap ${item.color}`}>
-                <Icon size={22} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">{item.label}</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{item.value}</p>
-              </div>
-            </article>
-          );
-        })}
-      </section>
+      <DashboardStatGrid items={statCards} />
 
 
 
@@ -283,11 +271,11 @@ export const MaintenanceDashboard = () => {
       {!loading && !error && (
         <>
           {/* ---- Active Work Queue ---- */}
-          <section id="work-queue" data-dashboard-section="true" className="motion-section space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <section id="work-queue" data-dashboard-section="true" className="motion-section dashboard-panel saas-card interactive-surface">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Wrench size={18} className="text-campus-500" />
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Active Work Queue</h2>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Active Work Queue</h3>
                 <span className="pill-badge bg-campus-50 text-campus-600 dark:bg-campus-900/20 dark:text-campus-400">{filteredActiveTickets.length}</span>
               </div>
               <div className="flex items-center rounded-xl border border-gray-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900">
@@ -316,7 +304,7 @@ export const MaintenanceDashboard = () => {
                   return (
                     <article
                       key={ticket.id}
-                      className={`saas-card interactive-surface border-l-4 ${urgencyBorderColor[ticket.urgency] || "border-l-gray-300"}`}
+                      className={`dashboard-panel saas-card interactive-surface border-l-4 ${urgencyBorderColor[ticket.urgency] || "border-l-gray-300"}`}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -414,7 +402,7 @@ export const MaintenanceDashboard = () => {
           </section>
 
           {/* ---- My Performance Card ---- */}
-          <section id="performance" data-dashboard-section="true" className="motion-section saas-card interactive-surface">
+          <section id="performance" data-dashboard-section="true" className="motion-section dashboard-panel saas-card interactive-surface">
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">My Performance</h3>
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-xl bg-emerald-50 p-4 text-center dark:bg-emerald-900/20">
@@ -438,38 +426,40 @@ export const MaintenanceDashboard = () => {
           </section>
 
           {/* ---- Resolved Tickets ---- */}
-          <section id="resolved" data-dashboard-section="true" className="motion-section space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Resolved Tickets</h2>
-            {filteredResolvedTickets.length === 0 ? (
-              <EmptyState
-                title={resolvedTickets.length === 0 ? "No resolved tickets" : "No resolved tickets match search"}
-                message={resolvedTickets.length === 0 ? "Resolved items will appear here." : "Try another term or clear the search."}
-              />
-            ) : (
-              <div className="motion-grid grid gap-4">
-                {filteredResolvedTickets.map((ticket) => (
-                  <article key={ticket.id} className="saas-card interactive-surface">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <button type="button" onClick={() => openTicket(ticket.id)} className="interactive-control text-left">
-                          <h3 className="font-semibold text-gray-900 hover:text-campus-600 dark:text-white dark:hover:text-campus-400 transition-colors">
-                            {ticket.title}
-                          </h3>
-                        </button>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{ticket.building}  |  {ticket.location}</p>
+          <section id="resolved" data-dashboard-section="true" className="motion-section dashboard-panel saas-card interactive-surface">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Resolved Tickets</h3>
+            <div className="space-y-4">
+              {filteredResolvedTickets.length === 0 ? (
+                <EmptyState
+                  title={resolvedTickets.length === 0 ? "No resolved tickets" : "No resolved tickets match search"}
+                  message={resolvedTickets.length === 0 ? "Resolved items will appear here." : "Try another term or clear the search."}
+                />
+              ) : (
+                <div className="motion-grid grid gap-4">
+                  {filteredResolvedTickets.map((ticket) => (
+                    <article key={ticket.id} className="rounded-xl border border-gray-200 p-4 dark:border-slate-700">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <button type="button" onClick={() => openTicket(ticket.id)} className="interactive-control text-left">
+                            <h3 className="font-semibold text-gray-900 hover:text-campus-600 dark:text-white dark:hover:text-campus-400 transition-colors">
+                              {ticket.title}
+                            </h3>
+                          </button>
+                          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{ticket.building}  |  {ticket.location}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <StatusBadge status={ticket.status} />
+                          <UrgencyBadge urgency={ticket.urgency} />
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <StatusBadge status={ticket.status} />
-                        <UrgencyBadge urgency={ticket.urgency} />
-                      </div>
-                    </div>
-                    <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
-                      {titleCase(ticket.category)}  |  Submitted {formatDate(ticket.createdAt)}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            )}
+                      <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+                        {titleCase(ticket.category)}  |  Submitted {formatDate(ticket.createdAt)}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
         </>
       )}

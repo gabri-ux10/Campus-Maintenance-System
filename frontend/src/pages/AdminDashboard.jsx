@@ -17,8 +17,6 @@ import {
 } from "recharts";
 import {
   AlertTriangle,
-  ArrowDownRight,
-  ArrowUpRight,
   CheckCircle2,
   Clock,
   ClipboardList,
@@ -39,6 +37,7 @@ import { Modal } from "../components/Common/Modal.jsx";
 import { StatusBadge } from "../components/Common/StatusBadge.jsx";
 import { UrgencyBadge } from "../components/Common/UrgencyBadge.jsx";
 import { UserAvatar } from "../components/Common/UserAvatar.jsx";
+import { DashboardHero, DashboardStatGrid } from "../components/Dashboard/DashboardPrimitives.jsx";
 import { TicketTimeline } from "../components/tickets/TicketTimeline.jsx";
 import { useAuth } from "../hooks/useAuth";
 import { analyticsService } from "../services/analyticsService";
@@ -293,28 +292,28 @@ export const AdminDashboard = () => {
         label: "Total Tickets",
         value: summary?.totalTickets ?? 0,
         icon: FileText,
-        color: "bg-blue-100 text-campus-600 dark:bg-blue-900/30 dark:text-blue-400",
+        tone: "info",
         trend: ticketTrends.total,
       },
       {
         label: "Pending",
         value: pendingCount,
         icon: Clock,
-        color: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400",
+        tone: "warning",
         trend: null,
       },
       {
         label: "In Progress",
         value: inProgressCount,
         icon: Loader2,
-        color: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
+        tone: "campus",
         trend: null,
       },
       {
         label: "Resolved",
         value: resolvedCount,
         icon: CheckCircle2,
-        color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
+        tone: "success",
         trend: ticketTrends.resolved,
       },
     ]),
@@ -442,13 +441,10 @@ export const AdminDashboard = () => {
   /* ================================================================ */
   return (
     <div className="dashboard-shell space-y-6 animate-fade-in">
-      {/* ---- Welcome Banner ---- */}
-      <section id="dashboard" data-dashboard-section="true" className="motion-section relative overflow-hidden rounded-2xl bg-gradient-to-br from-campus-500 via-campus-600 to-campus-800 p-6 text-white shadow-lg">
-        <div className="absolute -top-8 -right-8 h-40 w-40 rounded-full bg-white/10" />
-        <div className="absolute bottom-0 right-20 h-24 w-24 rounded-full bg-white/5" />
-        <div className="relative flex items-center justify-between">
+      <DashboardHero id="dashboard" tone="admin">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="rounded-2xl bg-white/15 p-1 backdrop-blur-sm">
+            <div className="dashboard-avatar-wrap">
               <UserAvatar
                 fullName={auth?.fullName}
                 username={auth?.username}
@@ -460,8 +456,9 @@ export const AdminDashboard = () => {
               />
             </div>
             <div>
-              <h1 className="text-xl font-bold">{greeting}, {auth?.fullName || "Admin"}</h1>
-              <p className="mt-0.5 text-sm text-blue-100">
+              <p className="dashboard-hero-eyebrow">Operations Command</p>
+              <h1 className="dashboard-hero-title">{greeting}, {auth?.fullName || "Admin"}</h1>
+              <p className="dashboard-hero-subtitle">
                 Welcome to your admin command center. You have{" "}
                 <span className="font-semibold text-white">{summary?.byStatus?.SUBMITTED || 0} tickets</span> pending review.
               </p>
@@ -473,48 +470,16 @@ export const AdminDashboard = () => {
                 setFilters((prev) => ({ ...prev, status: "SUBMITTED" }));
                 document.getElementById("tickets")?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
-              className="interactive-control hidden rounded-xl bg-white/20 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/30 sm:flex items-center gap-2"
+              className="dashboard-hero-button interactive-control hidden sm:flex items-center gap-2"
             >
               <AlertTriangle size={16} />
               Review Pending ({summary?.byStatus?.SUBMITTED || 0})
             </button>
           )}
         </div>
-      </section>
+      </DashboardHero>
 
-      {/* ---- Stats Row (4 cards) ---- */}
-      <section className="motion-section motion-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {statCards.map((item) => {
-          const Icon = item.icon;
-          const isPositive = typeof item.trend === "number" && item.trend > 0;
-          const isNegative = typeof item.trend === "number" && item.trend < 0;
-          const TrendIcon = isPositive ? ArrowUpRight : isNegative ? ArrowDownRight : TrendingUp;
-          const trendTone = isPositive
-            ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
-            : isNegative
-              ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400"
-              : "bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-gray-300";
-          const trendLabel = item.trend === null || item.trend === undefined ? null : `${item.trend > 0 ? "+" : ""}${item.trend}%`;
-          return (
-            <article key={item.label} className="saas-card interactive-surface flex items-center gap-4">
-              <div className={`icon-wrap ${item.color}`}>
-                <Icon size={22} />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">{item.label}</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{item.value}</p>
-                  {trendLabel && (
-                    <span className={`pill-badge ${trendTone}`}>
-                      <TrendIcon size={12} /> {trendLabel}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </section>
+      <DashboardStatGrid items={statCards} />
 
       {/* ---- SLA + Quick Actions Row ---- */}
       <section className="motion-section grid gap-4 xl:grid-cols-2">
@@ -654,7 +619,7 @@ export const AdminDashboard = () => {
       )}
 
       {/* ---- Ticket Operations ---- */}
-      <section id="tickets" data-dashboard-section="true" className="motion-section saas-card interactive-surface">
+      <section id="tickets" data-dashboard-section="true" className="motion-section dashboard-panel saas-card interactive-surface">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Ticket Operations</h3>
           {filters.search && (
@@ -734,7 +699,7 @@ export const AdminDashboard = () => {
       </section>
 
       {/* ---- Staff Onboarding ---- */}
-      <section id="staff" data-dashboard-section="true" className="motion-section saas-card interactive-surface">
+      <section id="staff" data-dashboard-section="true" className="motion-section dashboard-panel saas-card interactive-surface">
         <div className="mb-4 flex items-center justify-between gap-2">
           <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Staff Onboarding</h3>
           <span className="pill-badge bg-campus-50 text-campus-600 dark:bg-campus-900/20 dark:text-campus-400">{maintenanceUsers.length} active maintenance users</span>
@@ -823,7 +788,7 @@ export const AdminDashboard = () => {
       </section>
 
       {/* ---- User Management ---- */}
-      <section id="users" data-dashboard-section="true" className="motion-section saas-card interactive-surface">
+      <section id="users" data-dashboard-section="true" className="motion-section dashboard-panel saas-card interactive-surface">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">User Management</h3>
           <span className="pill-badge bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-gray-300">
@@ -889,7 +854,7 @@ export const AdminDashboard = () => {
       </section>
 
       {/* ---- Broadcast Center ---- */}
-      <section id="broadcast" data-dashboard-section="true" className="motion-section saas-card interactive-surface">
+      <section id="broadcast" data-dashboard-section="true" className="motion-section dashboard-panel saas-card interactive-surface">
         <div className="mb-4 flex items-center gap-2">
           <Megaphone size={18} className="text-campus-500" />
           <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Audience Broadcast</h3>
@@ -1025,6 +990,7 @@ export const AdminDashboard = () => {
     </div>
   );
 };
+
 
 
 
