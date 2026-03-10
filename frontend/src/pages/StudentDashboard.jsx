@@ -1,36 +1,54 @@
 import {
+  ArrowRight,
+  BadgeCheck,
   CheckCircle2,
   ClipboardList,
   Droplets,
-  FileText,
   Hammer,
   Laptop,
-  Plus,
+  ReceiptText,
   ShieldAlert,
   Sparkles,
   Star,
+  TicketPlus,
+  TriangleAlert,
+  Waypoints,
   Wind,
   Wrench,
   Zap,
-  Clock,
-  Search,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "../components/Common/EmptyState.jsx";
 import { LoadingSpinner } from "../components/Common/LoadingSpinner.jsx";
 import { Modal } from "../components/Common/Modal.jsx";
 import { StatusBadge } from "../components/Common/StatusBadge.jsx";
 import { UrgencyBadge } from "../components/Common/UrgencyBadge.jsx";
 import { UserAvatar } from "../components/Common/UserAvatar.jsx";
+import { SkeletonLoader } from "../components/Common/SkeletonLoader.jsx";
+import { DataTable } from "../components/Common/DataTable.jsx";
 import { DashboardHero, DashboardStatGrid } from "../components/Dashboard/DashboardPrimitives.jsx";
+import { MotionCardSurface } from "../components/Dashboard/MotionCardSurface.jsx";
 import { TicketTimeline } from "../components/tickets/TicketTimeline.jsx";
 import { useAuth } from "../hooks/useAuth";
 import { useTickets } from "../hooks/useTickets";
-import { buildingService } from "../services/buildingService";
+import {
+  useActiveBuildingsQuery,
+  useActiveRequestTypesQuery,
+  useServiceDomainsQuery,
+} from "../queries/catalogQueries.js";
 import { ticketService } from "../services/ticketService";
-import { CATEGORIES, URGENCY_LEVELS } from "../utils/constants";
-import { formatDate, titleCase } from "../utils/helpers";
+import { URGENCY_LEVELS } from "../utils/constants";
+import { formatDate, titleCase, toHours } from "../utils/helpers";
 import { loadProfilePreferences } from "../utils/profilePreferences";
+import {
+  getTicketBuildingName,
+  getTicketLocationSummary,
+  getTicketRequestTypeLabel,
+  getTicketServiceDomainKey,
+} from "../utils/ticketPresentation";
+import { scrollToDashboardSection } from "../components/Dashboard/scrollToDashboardSection";
+
+const OPEN_STUDENT_COMPOSER_EVENT = "dashboard:open-student-composer";
 
 const categoryIcon = {
   ELECTRICAL: Zap,
@@ -49,7 +67,7 @@ const categoryColors = {
   PLUMBING: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
   HVAC: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400",
   CLEANING: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
-  IT: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
+  IT: "bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400",
   FURNITURE: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400",
   STRUCTURAL: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
   SAFETY: "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400",
@@ -58,130 +76,373 @@ const categoryColors = {
 
 const STATUS_STEPS = ["SUBMITTED", "APPROVED", "ASSIGNED", "IN_PROGRESS", "RESOLVED"];
 
-const defaultForm = {
+const createDefaultForm = ({
+  serviceDomainKey = "",
+  requestTypeId = "",
+  buildingId = "",
+} = {}) => ({
   title: "",
   description: "",
-  category: "ELECTRICAL",
-  building: "",
+  serviceDomainKey,
+  requestTypeId,
+  buildingId,
   location: "",
   urgency: "MEDIUM",
+});
+
+const formatAverageDuration = (hours) => {
+  if (!hours) return "No completed tickets yet";
+  if (hours >= 48) return `${Math.round(hours / 24)} days average`;
+  if (hours >= 1) return `${Math.round(hours)} hours average`;
+  return `${Math.max(1, Math.round(hours * 60))} mins average`;
 };
 
-/* ================================================================== */
-/*  Active Ticket Tracker (progress stepper)                          */
-/* ================================================================== */
 const TicketTracker = ({ ticket }) => {
   if (!ticket) return null;
   const currentIndex = STATUS_STEPS.indexOf(ticket.status);
-  const isRejected = ticket.status === "REJECTED";
+  const progress = ticket.status === "REJECTED" ? 100 : Math.max(10, ((currentIndex + 1) / STATUS_STEPS.length) * 100);
 
   return (
-    <article className="dashboard-panel saas-card interactive-surface">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Active Ticket Tracker</h3>
-        <span className="pill-badge bg-campus-50 text-campus-600 dark:bg-campus-900/20 dark:text-campus-400">#{ticket.id}</span>
-      </div>
-      <p className="mb-4 text-sm font-medium text-gray-700 dark:text-gray-200">{ticket.title}</p>
-
-      {isRejected ? (
-        <div className="rounded-xl bg-red-50 p-3 dark:bg-red-900/20">
-          <p className="text-sm font-semibold text-red-600 dark:text-red-400">Ticket was rejected by admin</p>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ticket.title}</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{getTicketLocationSummary(ticket)}</p>
         </div>
-      ) : (
-        <div className="flex items-center gap-0">
-          {STATUS_STEPS.map((step, i) => {
-            const isCompleted = i <= currentIndex;
-            const isCurrent = i === currentIndex;
+        <div className="flex items-center gap-2">
+          <StatusBadge status={ticket.status} />
+          <UrgencyBadge urgency={ticket.urgency} />
+        </div>
+      </div>
+
+      <div className="rounded-[1.2rem] border border-gray-100 bg-white/70 p-4 dark:border-slate-800 dark:bg-slate-900/55">
+        <div className="mb-3 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+          <span>Workflow progress</span>
+          <span>{Math.round(progress)}%</span>
+        </div>
+        <div className="h-2 rounded-full bg-gray-100 dark:bg-slate-800">
+          <div
+            className={`h-full rounded-full ${ticket.status === "REJECTED" ? "bg-gradient-to-r from-red-500 to-rose-400" : "bg-gradient-to-r from-campus-500 to-sky-400"}`}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-5">
+          {STATUS_STEPS.map((step, index) => {
+            const done = index <= currentIndex;
             return (
-              <div key={step} className="flex flex-1 items-center">
-                <div className="flex flex-col items-center flex-1">
-                  <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all duration-300 ${isCompleted
-                      ? "bg-campus-500 text-white shadow-sm shadow-campus-500/25"
-                      : "bg-gray-100 text-gray-400 dark:bg-slate-700 dark:text-gray-500"
-                      } ${isCurrent ? "ring-4 ring-campus-100 dark:ring-campus-900/30" : ""}`}
-                  >
-                    {isCompleted && i < currentIndex ? <CheckCircle2 size={14} /> : i + 1}
-                  </div>
-                  <span className={`mt-1.5 text-[10px] font-medium text-center leading-tight ${isCompleted ? "text-campus-600 dark:text-campus-400" : "text-gray-400 dark:text-gray-500"}`}>
-                    {titleCase(step.replace("_", " "))}
-                  </span>
+              <div key={step} className="flex items-center gap-3 sm:flex-col sm:items-start sm:gap-2">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-2xl text-xs font-bold ${
+                  done ? "bg-campus-500 text-white shadow-sm shadow-campus-500/25" : "bg-gray-100 text-gray-400 dark:bg-slate-800 dark:text-slate-500"
+                }`}
+                >
+                  {done && index < currentIndex ? <CheckCircle2 size={14} /> : index + 1}
                 </div>
-                {i < STATUS_STEPS.length - 1 && (
-                  <div className={`h-0.5 w-full min-w-[20px] ${i < currentIndex ? "bg-campus-500" : "bg-gray-200 dark:bg-slate-700"}`} />
-                )}
+                <span className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${
+                  done ? "text-campus-700 dark:text-campus-300" : "text-gray-400 dark:text-slate-500"
+                }`}
+                >
+                  {titleCase(step)}
+                </span>
               </div>
             );
           })}
         </div>
-      )}
-    </article>
+      </div>
+    </div>
   );
 };
 
-/* ================================================================== */
-/*  STUDENT DASHBOARD                                                  */
-/* ================================================================== */
+const TrackerDetail = ({ ticket, statusCounts, openUrgentCount, averageResolutionHours }) => {
+  if (!ticket) return <EmptyState title="No active request" message="Submit an issue to start tracking progress." />;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-4">
+        <div className="rounded-[1rem] border border-gray-100 bg-white/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Current status</p>
+          <div className="mt-2"><StatusBadge status={ticket.status} /></div>
+        </div>
+        <div className="rounded-[1rem] border border-gray-100 bg-white/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Urgency</p>
+          <div className="mt-2"><UrgencyBadge urgency={ticket.urgency} /></div>
+        </div>
+        <div className="rounded-[1rem] border border-gray-100 bg-white/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Urgent open</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{openUrgentCount}</p>
+        </div>
+        <div className="rounded-[1rem] border border-gray-100 bg-white/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Avg turnaround</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{averageResolutionHours ? `${Math.round(averageResolutionHours)}h` : "-"}</p>
+        </div>
+      </div>
+
+      <div className="rounded-[1.35rem] border border-gray-100 bg-white/70 p-5 dark:border-slate-800 dark:bg-slate-900/60">
+        <TicketTracker ticket={ticket} />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-[1rem] border border-gray-100 bg-white/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Submitted</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{statusCounts.SUBMITTED || 0}</p>
+        </div>
+        <div className="rounded-[1rem] border border-gray-100 bg-white/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Assigned</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{statusCounts.ASSIGNED || 0}</p>
+        </div>
+        <div className="rounded-[1rem] border border-gray-100 bg-white/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">In progress</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{statusCounts.IN_PROGRESS || 0}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RecentActivityDetail = ({ tickets }) => (
+  <div className="space-y-5">
+    <div className="grid gap-3 sm:grid-cols-3">
+      <div className="rounded-[1rem] border border-gray-100 bg-white/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Requests listed</p>
+        <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{tickets.length}</p>
+      </div>
+      <div className="rounded-[1rem] border border-gray-100 bg-white/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Latest request</p>
+        <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{tickets[0] ? `#${tickets[0].id}` : "-"}</p>
+      </div>
+      <div className="rounded-[1rem] border border-gray-100 bg-white/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Latest building</p>
+        <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{tickets[0] ? getTicketBuildingName(tickets[0]) : "-"}</p>
+      </div>
+    </div>
+
+    {tickets.length === 0 ? (
+      <EmptyState title="No recent activity" message="Recent requests will appear here once you start filing issues." />
+    ) : (
+      <div className="space-y-3">
+        {tickets.slice(0, 8).map((ticket) => (
+          <div key={ticket.id} className="dashboard-list-item px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{ticket.title}</p>
+                <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">{getTicketLocationSummary(ticket)} | {formatDate(ticket.createdAt)}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <UrgencyBadge urgency={ticket.urgency} />
+                <StatusBadge status={ticket.status} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
 export const StudentDashboard = () => {
   const { auth } = useAuth();
   const { tickets, loading, error, refresh } = useTickets(() => ticketService.getMyTickets(), []);
-  const [showForm, setShowForm] = useState(true);
-  const [form, setForm] = useState(defaultForm);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(() => createDefaultForm());
   const [imageFile, setImageFile] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [buildings, setBuildings] = useState([]);
-  const [buildingError, setBuildingError] = useState("");
-  const [ticketSearch, setTicketSearch] = useState("");
+  const [buildingSelectionWarning, setBuildingSelectionWarning] = useState("");
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
   const [rating, setRating] = useState({ stars: 5, comment: "" });
   const [ratingLoading, setRatingLoading] = useState(false);
   const [ratingError, setRatingError] = useState("");
+  const [dashboardSearch, setDashboardSearch] = useState("");
+  const activeBuildingsQuery = useActiveBuildingsQuery();
+  const serviceDomainsQuery = useServiceDomainsQuery();
+  const requestTypesQuery = useActiveRequestTypesQuery(form.serviceDomainKey);
 
-  const stats = useMemo(() => {
-    const total = tickets.length;
-    const pending = tickets.filter((t) => !["RESOLVED", "CLOSED", "REJECTED"].includes(t.status)).length;
-    const resolved = tickets.filter((t) => ["RESOLVED", "CLOSED"].includes(t.status)).length;
-    const rejected = tickets.filter((t) => t.status === "REJECTED").length;
-    return { total, pending, resolved, rejected };
-  }, [tickets]);
+  const buildings = useMemo(() => activeBuildingsQuery.data ?? [], [activeBuildingsQuery.data]);
+  const serviceDomains = useMemo(() => serviceDomainsQuery.data ?? [], [serviceDomainsQuery.data]);
+  const requestTypes = useMemo(() => requestTypesQuery.data ?? [], [requestTypesQuery.data]);
+  const buildingError = activeBuildingsQuery.error?.response?.data?.message || "";
+  const catalogError =
+    serviceDomainsQuery.error?.response?.data?.message
+    || requestTypesQuery.error?.response?.data?.message
+    || "";
+  const requestTypeLoading = Boolean(form.serviceDomainKey) && (requestTypesQuery.isLoading || requestTypesQuery.isFetching);
 
-  const statCards = useMemo(
-    () => [
-      { label: "Total Submitted", value: stats.total, icon: FileText, tone: "info" },
-      { label: "In Progress", value: stats.pending, icon: Clock, tone: "warning" },
-      { label: "Resolved", value: stats.resolved, icon: CheckCircle2, tone: "success" },
-      { label: "Rejected", value: stats.rejected, icon: ShieldAlert, tone: "danger" },
-    ],
-    [stats]
-  );
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const avatarPreferences = useMemo(() => loadProfilePreferences(auth?.username), [auth?.username]);
 
-  const latestActiveTicket = useMemo(
-    () => tickets.find((t) => !["RESOLVED", "CLOSED", "REJECTED"].includes(t.status)) || tickets[0],
+  const sortedTickets = useMemo(
+    () => [...tickets].sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt)),
     [tickets]
   );
 
-  const filteredTickets = useMemo(() => {
-    const query = ticketSearch.trim().toLowerCase();
-    if (!query) return tickets;
-    return tickets.filter((ticket) => (
-      `${ticket.id}`.includes(query)
-      || ticket.title.toLowerCase().includes(query)
-      || ticket.building.toLowerCase().includes(query)
-      || ticket.location.toLowerCase().includes(query)
-      || ticket.category.toLowerCase().includes(query)
-      || ticket.status.toLowerCase().includes(query)
-    ));
-  }, [ticketSearch, tickets]);
+  const stats = useMemo(() => {
+    const total = sortedTickets.length;
+    const pending = sortedTickets.filter((ticket) => !["RESOLVED", "CLOSED", "REJECTED"].includes(ticket.status)).length;
+    const resolved = sortedTickets.filter((ticket) => ["RESOLVED", "CLOSED"].includes(ticket.status)).length;
+    return { total, pending, resolved };
+  }, [sortedTickets]);
+  const statusCounts = useMemo(
+    () => sortedTickets.reduce((accumulator, ticket) => {
+      accumulator[ticket.status] = (accumulator[ticket.status] || 0) + 1;
+      return accumulator;
+    }, {}),
+    [sortedTickets]
+  );
+
+  const latestActiveTicket = useMemo(
+    () => sortedTickets.find((ticket) => !["RESOLVED", "CLOSED", "REJECTED"].includes(ticket.status)) || sortedTickets[0],
+    [sortedTickets]
+  );
+
+  const averageResolutionHours = useMemo(() => {
+    const completed = sortedTickets.filter((ticket) => ["RESOLVED", "CLOSED"].includes(ticket.status) && ticket.resolvedAt);
+    if (completed.length === 0) return null;
+    const totalHours = completed.reduce((sum, ticket) => sum + toHours(ticket.createdAt, ticket.resolvedAt), 0);
+    return Math.round((totalHours / completed.length) * 10) / 10;
+  }, [sortedTickets]);
+
+  const openUrgentCount = useMemo(
+    () => sortedTickets.filter((ticket) => !["RESOLVED", "CLOSED", "REJECTED"].includes(ticket.status) && ["HIGH", "CRITICAL"].includes(ticket.urgency)).length,
+    [sortedTickets]
+  );
+
+  const statCards = useMemo(() => {
+    const resolvedRate = stats.total > 0 ? Math.round((stats.resolved / stats.total) * 100) : 0;
+    const highOpen = sortedTickets.filter((ticket) => !["RESOLVED", "CLOSED", "REJECTED"].includes(ticket.status) && ticket.urgency === "HIGH").length;
+    const criticalOpen = sortedTickets.filter((ticket) => !["RESOLVED", "CLOSED", "REJECTED"].includes(ticket.status) && ticket.urgency === "CRITICAL").length;
+    return [
+      {
+        motionId: "student-stat-submitted",
+        label: "Submitted",
+        value: stats.total,
+        icon: ReceiptText,
+        tone: "info",
+        helper: "Lifetime requests",
+        detailTitle: "Submitted requests",
+        detailNote: "Your full filing history across campus maintenance issues.",
+        detailRows: [
+          { label: "Open now", value: stats.pending },
+          { label: "Resolved", value: stats.resolved },
+          { label: "Rejected", value: statusCounts.REJECTED || 0 },
+          { label: "Latest request", value: sortedTickets[0] ? `#${sortedTickets[0].id}` : "-" },
+        ],
+      },
+      {
+        motionId: "student-stat-in-flight",
+        label: "In Flight",
+        value: stats.pending,
+        icon: Waypoints,
+        tone: "warning",
+        helper: "Awaiting campus action",
+        detailTitle: "Active requests",
+        detailNote: "Requests still moving through review, assignment, or repair.",
+        detailRows: [
+          { label: "Submitted", value: statusCounts.SUBMITTED || 0 },
+          { label: "Approved", value: statusCounts.APPROVED || 0 },
+          { label: "Assigned", value: statusCounts.ASSIGNED || 0 },
+          { label: "In progress", value: statusCounts.IN_PROGRESS || 0 },
+        ],
+      },
+      {
+        motionId: "student-stat-resolved",
+        label: "Resolved",
+        value: stats.resolved,
+        icon: BadgeCheck,
+        tone: "success",
+        helper: `${resolvedRate}% completion rate`,
+        detailTitle: "Resolved requests",
+        detailNote: "Completed tickets and the speed at which they were closed.",
+        detailRows: [
+          { label: "Completion rate", value: `${resolvedRate}%` },
+          { label: "Average turnaround", value: averageResolutionHours ? `${Math.round(averageResolutionHours)}h` : "-" },
+          { label: "Closed", value: statusCounts.CLOSED || 0 },
+          { label: "Resolved", value: statusCounts.RESOLVED || 0 },
+        ],
+      },
+      {
+        motionId: "student-stat-urgent-open",
+        label: "Urgent Open",
+        value: openUrgentCount,
+        icon: TriangleAlert,
+        tone: "danger",
+        helper: "High or critical requests",
+        detailTitle: "Urgent open requests",
+        detailNote: "Requests that still need action and are marked high priority.",
+        detailRows: [
+          { label: "High urgency", value: highOpen },
+          { label: "Critical urgency", value: criticalOpen },
+          { label: "Open requests", value: stats.pending },
+          { label: "Urgent share", value: stats.pending > 0 ? `${Math.round((openUrgentCount / stats.pending) * 100)}%` : "0%" },
+        ],
+      },
+    ];
+  }, [averageResolutionHours, openUrgentCount, sortedTickets, stats, statusCounts]);
+
+  const ticketColumns = useMemo(() => [
+    {
+      key: "id",
+      header: "ID",
+      render: (row) => <span className="font-semibold text-campus-600 dark:text-campus-400">#{row.id}</span>,
+      accessor: (row) => row.id,
+    },
+    {
+      key: "title",
+      header: "Title",
+      render: (row) => {
+        const serviceDomainKey = getTicketServiceDomainKey(row);
+        const Icon = categoryIcon[serviceDomainKey] || ClipboardList;
+        const colorClass = categoryColors[serviceDomainKey] || categoryColors.OTHER;
+        return (
+          <div className="flex items-center gap-2">
+            <div className={`icon-wrap ${colorClass} flex-shrink-0`}><Icon size={16} /></div>
+            <div className="min-w-0">
+              <span className="block truncate font-medium text-gray-900 dark:text-white">{row.title}</span>
+              <span className="text-xs text-gray-400 dark:text-slate-500">{getTicketRequestTypeLabel(row)}</span>
+            </div>
+          </div>
+        );
+      },
+      accessor: (row) => row.title,
+    },
+    { key: "building", header: "Location", accessor: (row) => getTicketLocationSummary(row) },
+    { key: "urgency", header: "Urgency", render: (row) => <UrgencyBadge urgency={row.urgency} />, accessor: (row) => row.urgency },
+    { key: "status", header: "Status", render: (row) => <StatusBadge status={row.status} />, accessor: (row) => row.status },
+    { key: "createdAt", header: "Submitted", accessor: (row) => formatDate(row.createdAt) },
+  ], []);
 
   const submitTicket = async (event) => {
     event.preventDefault();
+    if (!buildings.some((building) => String(building.id) === String(form.buildingId))) {
+      setBuildingSelectionWarning("The selected building was archived or removed while this form was open. Choose another active building before submitting.");
+      setSubmitError("Choose an active building before submitting.");
+      return;
+    }
+    if (!requestTypes.some((requestType) => String(requestType.id) === String(form.requestTypeId))) {
+      setSubmitError("Choose a current request type before submitting.");
+      return;
+    }
+    if (!form.requestTypeId || !form.buildingId) {
+      setSubmitError("Select a request type and building before submitting.");
+      return;
+    }
     setSubmitLoading(true);
     setSubmitError("");
     try {
-      await ticketService.createTicket(form, imageFile);
-      setForm(defaultForm);
+      await ticketService.createTicket({
+        title: form.title,
+        description: form.description,
+        buildingId: Number(form.buildingId),
+        requestTypeId: Number(form.requestTypeId),
+        location: form.location,
+        urgency: form.urgency,
+      }, imageFile);
+      setForm(createDefaultForm({
+        serviceDomainKey: form.serviceDomainKey,
+        requestTypeId: form.requestTypeId,
+        buildingId: form.buildingId,
+      }));
       setImageFile(null);
       setShowForm(false);
       await refresh();
@@ -225,228 +486,338 @@ export const StudentDashboard = () => {
     }
   };
 
-  /* ---- greeting ---- */
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
-  const avatarPreferences = useMemo(() => loadProfilePreferences(auth?.username), [auth?.username]);
+  useEffect(() => {
+    if (activeBuildingsQuery.isLoading) {
+      return;
+    }
+    const selectedBuildingStillExists = buildings.some((building) => String(building.id) === String(form.buildingId));
+    if (form.buildingId && !selectedBuildingStillExists) {
+      setBuildingSelectionWarning("The selected building was archived or removed while this form was open. Choose another active building before submitting.");
+      setForm((current) => ({ ...current, buildingId: "" }));
+      return;
+    }
+    if (!form.buildingId && !buildingSelectionWarning && buildings.length > 0) {
+      setForm((current) => (current.buildingId ? current : { ...current, buildingId: String(buildings[0].id) }));
+      return;
+    }
+    if (form.buildingId && selectedBuildingStillExists && buildingSelectionWarning) {
+      setBuildingSelectionWarning("");
+    }
+  }, [activeBuildingsQuery.isLoading, buildingSelectionWarning, buildings, form.buildingId]);
 
   useEffect(() => {
-    let mounted = true;
-    const loadBuildings = async () => {
-      try {
-        const items = await buildingService.getBuildings();
-        if (!mounted) return;
-        setBuildings(items);
-        if (items.length > 0) {
-          setForm((prev) => (prev.building ? prev : { ...prev, building: items[0].name }));
-        }
-      } catch (err) {
-        if (!mounted) return;
-        setBuildingError(err?.response?.data?.message || "Failed to load buildings.");
+    if (serviceDomainsQuery.isLoading) {
+      return;
+    }
+    const hasSelectedServiceDomain = serviceDomains.some((serviceDomain) => serviceDomain.key === form.serviceDomainKey);
+    if (form.serviceDomainKey && !hasSelectedServiceDomain) {
+      setForm((current) => ({
+        ...current,
+        serviceDomainKey: serviceDomains[0]?.key || "",
+        requestTypeId: "",
+      }));
+      return;
+    }
+    if (!form.serviceDomainKey && serviceDomains.length > 0) {
+      setForm((current) => (current.serviceDomainKey ? current : {
+        ...current,
+        serviceDomainKey: serviceDomains[0].key,
+      }));
+    }
+  }, [form.serviceDomainKey, serviceDomains, serviceDomainsQuery.isLoading]);
+
+  useEffect(() => {
+    if (!form.serviceDomainKey) {
+      if (form.requestTypeId) {
+        setForm((current) => ({ ...current, requestTypeId: "" }));
       }
-    };
-    loadBuildings();
-    return () => {
-      mounted = false;
-    };
+      return;
+    }
+    if (requestTypesQuery.isLoading || requestTypesQuery.isFetching) {
+      return;
+    }
+    const hasSelectedRequestType = requestTypes.some((requestType) => String(requestType.id) === String(form.requestTypeId));
+    if (form.requestTypeId && !hasSelectedRequestType) {
+      setForm((current) => ({ ...current, requestTypeId: String(requestTypes[0]?.id || "") }));
+      return;
+    }
+    if (!form.requestTypeId && requestTypes.length > 0) {
+      setForm((current) => (current.requestTypeId ? current : {
+        ...current,
+        requestTypeId: String(requestTypes[0].id),
+      }));
+    }
+  }, [form.requestTypeId, form.serviceDomainKey, requestTypes, requestTypesQuery.isFetching, requestTypesQuery.isLoading]);
+
+  const openComposer = useCallback(() => {
+    setShowForm(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToDashboardSection("report"));
+    });
   }, []);
 
   useEffect(() => {
-    const handleNavigate = (event) => {
-      const targetId = event.detail?.id;
-      if (!targetId) return;
-      if (targetId === "report") {
-        setShowForm(true);
-        window.requestAnimationFrame(() => {
-          document.getElementById("report")?.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
-      }
+    const handleOpenComposer = () => {
+      openComposer();
     };
-    const handleSearch = (event) => {
-      const query = event.detail?.query?.trim();
-      if (!query) return;
-      setTicketSearch(query);
-      window.requestAnimationFrame(() => {
-        document.getElementById("tickets")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    };
-    window.addEventListener("dashboard:navigate", handleNavigate);
-    window.addEventListener("dashboard:search", handleSearch);
-    return () => {
-      window.removeEventListener("dashboard:navigate", handleNavigate);
-      window.removeEventListener("dashboard:search", handleSearch);
-    };
-  }, []);
+
+    window.addEventListener(OPEN_STUDENT_COMPOSER_EVENT, handleOpenComposer);
+    return () => window.removeEventListener(OPEN_STUDENT_COMPOSER_EVENT, handleOpenComposer);
+  }, [openComposer]);
 
   return (
-    <div className="dashboard-shell space-y-6 animate-fade-in">
+    <div className="dashboard-shell animate-fade-in">
       <DashboardHero id="dashboard" tone="student">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="dashboard-avatar-wrap">
-              <UserAvatar
-                fullName={auth?.fullName}
-                username={auth?.username}
-                avatarType={avatarPreferences.avatarType}
-                avatarPreset={avatarPreferences.avatarPreset}
-                avatarImage={avatarPreferences.avatarImage}
-                size={48}
-                className="rounded-xl"
-              />
-            </div>
-            <div>
-              <p className="dashboard-hero-eyebrow">Student Hub</p>
-              <h1 className="dashboard-hero-title">{greeting}, {auth?.fullName || "Student"}</h1>
-              <p className="dashboard-hero-subtitle">
-                Report campus issues and track their progress in real-time.
-              </p>
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div className="space-y-5">
+            <div className="flex items-center gap-4">
+              <div className="dashboard-avatar-wrap">
+                <UserAvatar
+                  fullName={auth?.fullName}
+                  username={auth?.username}
+                  avatarType={avatarPreferences.avatarType}
+                  avatarPreset={avatarPreferences.avatarPreset}
+                  avatarImage={avatarPreferences.avatarImage}
+                  size={48}
+                  className="rounded-xl"
+                />
+              </div>
+              <div>
+                <h1 className="dashboard-hero-title">{greeting}, {auth?.fullName || "Student"}</h1>
+                <p className="dashboard-hero-subtitle">Submit issues quickly, track progress clearly, and keep every campus request in one place.</p>
+              </div>
             </div>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="dashboard-hero-button interactive-control hidden sm:flex items-center gap-2"
-          >
-            <Plus size={16} />
-            Report Issue
-          </button>
+
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={openComposer} className="btn-primary interactive-control"><TicketPlus size={16} />Submit Issue</button>
+            <button type="button" onClick={() => scrollToDashboardSection("tickets")} className="btn-ghost interactive-control">View Requests<ArrowRight size={15} /></button>
+          </div>
         </div>
       </DashboardHero>
 
-      <DashboardStatGrid items={statCards} />
-      {/* ---- Report Issue Form ---- */}
+      {loading ? <SkeletonLoader variant="stat" count={4} /> : <DashboardStatGrid items={statCards} />}
+
       {showForm && (
-        <section id="report" data-dashboard-section="true" className="motion-section dashboard-panel saas-card interactive-surface animate-soft-rise">
-          <form onSubmit={submitTicket} className="grid gap-4 md:grid-cols-2">
+        <MotionCardSurface
+          as="section"
+          cardId="student-report-composer"
+          sectionId="report"
+          className="motion-section dashboard-panel interactive-surface"
+          trackSection
+        >
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Title</label>
-              <input required value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" />
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Report a campus issue</h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Strong requests include a precise location, clear description, urgency, and a photo when visibility matters.</p>
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Category</label>
-              <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30">
-                {CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Description</label>
-              <textarea required rows={4} value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Building</label>
-              {buildings.length > 0 ? (
+            <button type="button" onClick={() => setShowForm(false)} className="btn-ghost interactive-control">Close composer</button>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.8fr)]">
+            <form onSubmit={submitTicket} className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Title</label>
+                <input required value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" placeholder="Short summary of the issue" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Service domain</label>
                 <select
                   required
-                  value={form.building}
-                  onChange={(e) => setForm((p) => ({ ...p, building: e.target.value }))}
+                  value={form.serviceDomainKey}
+                  onChange={(event) => setForm((current) => ({ ...current, serviceDomainKey: event.target.value, requestTypeId: "" }))}
                   className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30"
                 >
-                  {buildings.map((building) => (
-                    <option key={building.id} value={building.name}>
-                      {building.name} ({building.code})
-                    </option>
+                  <option value="" disabled>Select domain</option>
+                  {serviceDomains.map((serviceDomain) => (
+                    <option key={serviceDomain.id} value={serviceDomain.key}>{serviceDomain.label}</option>
                   ))}
                 </select>
-              ) : (
-                <input required value={form.building} onChange={(e) => setForm((p) => ({ ...p, building: e.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" placeholder="Enter building name" />
-              )}
-              {buildingError && (
-                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{buildingError}</p>
-              )}
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Location</label>
-              <input required value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Urgency</label>
-              <select value={form.urgency} onChange={(e) => setForm((p) => ({ ...p, urgency: e.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30">
-                {URGENCY_LEVELS.map((u) => <option key={u} value={u}>{titleCase(u)}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Before Photo <span className="text-gray-400 font-normal">(max 5MB, JPEG/PNG/WebP)</span></label>
-              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file && file.size > 5 * 1024 * 1024) { setSubmitError("Image must be under 5MB."); e.target.value = ""; return; }
-                setImageFile(file || null);
-              }} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-campus-50 file:px-3 file:py-1 file:text-campus-600 file:font-medium dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200 dark:file:bg-slate-800 dark:file:text-campus-400" />
-            </div>
+                {catalogError && serviceDomains.length === 0 && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{catalogError}</p>}
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Description</label>
+                <textarea required rows={4} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" placeholder="What happened and what should the team know before arriving?" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Request type</label>
+                <select
+                  required
+                  value={form.requestTypeId}
+                  onChange={(event) => setForm((current) => ({ ...current, requestTypeId: event.target.value }))}
+                  disabled={!form.serviceDomainKey || requestTypeLoading || requestTypes.length === 0}
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30 dark:disabled:bg-slate-800"
+                >
+                  <option value="" disabled>
+                    {!form.serviceDomainKey ? "Select a domain first" : requestTypeLoading ? "Loading request types..." : requestTypes.length === 0 ? "No request types available" : "Select request type"}
+                  </option>
+                  {requestTypes.map((requestType) => (
+                    <option key={requestType.id} value={requestType.id}>{requestType.label}</option>
+                  ))}
+                </select>
+                {catalogError && form.serviceDomainKey && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{catalogError}</p>}
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Building</label>
+                <select
+                  required
+                  value={form.buildingId}
+                  onChange={(event) => {
+                    setBuildingSelectionWarning("");
+                    setForm((current) => ({ ...current, buildingId: event.target.value }));
+                  }}
+                  disabled={buildings.length === 0}
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30 dark:disabled:bg-slate-800"
+                >
+                  <option value="" disabled>{buildings.length === 0 ? "No buildings available" : "Select building"}</option>
+                  {buildings.map((building) => (
+                    <option key={building.id} value={building.id}>{building.name} ({building.code})</option>
+                  ))}
+                </select>
+                {buildingSelectionWarning && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{buildingSelectionWarning}</p>}
+                {buildingError && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{buildingError}</p>}
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Location details</label>
+                <input required value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" placeholder="Room, floor, wing, or nearby landmark" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Urgency</label>
+                <select value={form.urgency} onChange={(event) => setForm((current) => ({ ...current, urgency: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30">
+                  {URGENCY_LEVELS.map((urgency) => <option key={urgency} value={urgency}>{titleCase(urgency)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Before photo <span className="font-normal text-gray-400">(max 5MB)</span></label>
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file && file.size > 5 * 1024 * 1024) {
+                    setSubmitError("Image must be under 5MB.");
+                    event.target.value = "";
+                    return;
+                  }
+                  setImageFile(file || null);
+                }} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-campus-50 file:px-3 file:py-1 file:font-medium file:text-campus-600 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200 dark:file:bg-slate-800 dark:file:text-campus-400" />
+              </div>
+              {submitError && <p className="md:col-span-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{submitError}</p>}
+              <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+                <button disabled={submitLoading} className="btn-primary interactive-control">{submitLoading ? "Submitting..." : "Submit Request"}</button>
+                <button type="button" onClick={() => setShowForm(false)} className="btn-ghost interactive-control">Cancel</button>
+              </div>
+            </form>
 
-            {submitError && <p className="md:col-span-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{submitError}</p>}
-
-            <div className="md:col-span-2 flex items-center gap-3">
-              <button disabled={submitLoading} className="btn-primary interactive-control">{submitLoading ? "Submitting..." : "Submit Ticket"}</button>
-              <button type="button" onClick={() => setShowForm(false)} className="btn-ghost interactive-control">Cancel</button>
+            <div className="space-y-4">
+              <div className="rounded-[1.2rem] border border-gray-100 bg-white/70 p-5 dark:border-slate-800 dark:bg-slate-900/55">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">What helps operations move fast</p>
+                <ul className="mt-4 space-y-3 text-sm text-gray-600 dark:text-gray-300">
+                  <li className="flex gap-3"><span className="mt-1 h-2 w-2 rounded-full bg-campus-500" />Exact location: building, floor, room, or nearest landmark.</li>
+                  <li className="flex gap-3"><span className="mt-1 h-2 w-2 rounded-full bg-campus-500" />Specific impact: what is blocked, unsafe, leaking, or offline.</li>
+                  <li className="flex gap-3"><span className="mt-1 h-2 w-2 rounded-full bg-campus-500" />A photo when visibility matters or access could be unclear.</li>
+                </ul>
+              </div>
+              <div className="rounded-[1.2rem] border border-campus-100 bg-campus-50/70 px-4 py-4 text-sm text-campus-800 dark:border-campus-900/40 dark:bg-campus-900/20 dark:text-campus-100">
+                <p className="font-semibold">{formatAverageDuration(averageResolutionHours)}</p>
+                <p className="mt-2">Clearer requests usually reach the right team faster and reduce back-and-forth clarification.</p>
+              </div>
             </div>
-          </form>
-        </section>
-      )}
-
-      {/* ---- Active Ticket Tracker ---- */}
-      {latestActiveTicket && (
-        <section id="tracker" data-dashboard-section="true" className="motion-section">
-          <TicketTracker ticket={latestActiveTicket} />
-        </section>
-      )}
-
-      {/* ---- Your Tickets ---- */}
-      <section id="tickets" data-dashboard-section="true" className="motion-section dashboard-panel saas-card interactive-surface">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Your Tickets</h3>
-          <div className="flex items-center rounded-xl border border-gray-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900">
-            <Search size={14} className="text-gray-400" />
-            <input
-              value={ticketSearch}
-              onChange={(e) => setTicketSearch(e.target.value)}
-              placeholder="Search tickets..."
-              className="w-52 bg-transparent px-2 py-2 text-sm outline-none dark:text-gray-200"
-            />
           </div>
-        </div>
-        <div className="space-y-4">
-          {loading && <LoadingSpinner label="Loading your tickets..." />}
-          {!loading && error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{error}</p>}
-          {!loading && !error && tickets.length === 0 && <EmptyState title="No tickets yet" message="Submit your first maintenance issue using the form above." />}
-          {!loading && !error && tickets.length > 0 && filteredTickets.length === 0 && <EmptyState title="No tickets match your search" message="Try another search term or clear filters." />}
-          {!loading && !error && filteredTickets.length > 0 && (
-            <div className="grid gap-4">
-              {filteredTickets.map((ticket) => {
-                const Icon = categoryIcon[ticket.category] || ClipboardList;
-                const colorClass = categoryColors[ticket.category] || categoryColors.OTHER;
-                return (
-                  <button
-                    type="button"
-                    key={ticket.id}
-                    onClick={() => openTicket(ticket.id)}
-                    className="group saas-card interactive-surface interactive-control text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`icon-wrap ${colorClass}`}>
-                          <Icon size={20} />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900 dark:text-white">{ticket.title}</h3>
-                          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{ticket.building}  |  {ticket.location}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={ticket.status} />
-                        <UrgencyBadge urgency={ticket.urgency} />
-                      </div>
-                    </div>
-                    <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
-                      {titleCase(ticket.category)}  |  Submitted {formatDate(ticket.createdAt)}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </section>
+        </MotionCardSurface>
+      )}
 
-      {/* ---- Ticket Detail Modal ---- */}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]">
+        <MotionCardSurface
+          as="section"
+          cardId="student-current-tracker"
+          sectionId="tracker"
+          className="motion-section dashboard-panel interactive-surface"
+          trackSection
+          morphOnClick
+          detailTitle="Current request detail"
+          detailContent={<TrackerDetail ticket={latestActiveTicket} statusCounts={statusCounts} openUrgentCount={openUrgentCount} averageResolutionHours={averageResolutionHours} />}
+          modalWidth="max-w-4xl"
+        >
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">Current request status</h2>
+            </div>
+            {latestActiveTicket && <span className="pill-badge bg-campus-50 text-campus-700 dark:bg-campus-900/20 dark:text-campus-300">#{latestActiveTicket.id}</span>}
+          </div>
+          {latestActiveTicket ? <TicketTracker ticket={latestActiveTicket} /> : <EmptyState title="No requests yet" message="When you submit an issue, the status tracker will appear here." />}
+        </MotionCardSurface>
+
+        <MotionCardSurface
+          as="section"
+          cardId="student-recent-activity"
+          className="interactive-surface"
+          morphOnClick
+          detailTitle="Recent activity detail"
+          detailContent={<RecentActivityDetail tickets={sortedTickets} />}
+          modalWidth="max-w-4xl"
+        >
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent activity</h3>
+          </div>
+
+          <div className="space-y-4">
+            {sortedTickets.length === 0 ? (
+              <EmptyState title="No recent activity" message="Your last few requests will appear here once you start filing issues." />
+            ) : (
+              <div className="space-y-3">
+                {sortedTickets.slice(0, 4).map((ticket) => (
+                  <button key={ticket.id} type="button" onClick={() => openTicket(ticket.id)} className="dashboard-list-item interactive-row flex w-full items-start justify-between gap-3 px-4 py-3 text-left">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-gray-800 dark:text-white">{ticket.title}</p>
+                      <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">{getTicketLocationSummary(ticket)} | {formatDate(ticket.createdAt)}</p>
+                    </div>
+                    <StatusBadge status={ticket.status} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </MotionCardSurface>
+      </div>
+
+      <MotionCardSurface
+        as="section"
+        cardId="student-ticket-log"
+        sectionId="tickets"
+        className="motion-section dashboard-panel interactive-surface"
+        trackSection
+      >
+        {loading ? (
+          <SkeletonLoader variant="row" count={5} />
+        ) : error ? (
+          <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{error}</p>
+        ) : sortedTickets.length === 0 ? (
+          <EmptyState title="No requests yet" message="Submit your first campus issue to start building your request history." />
+        ) : (
+          <DataTable
+            data={sortedTickets}
+            columns={ticketColumns}
+            pageSize={10}
+            onRowClick={(row) => openTicket(row.id)}
+            exportFilename="my-tickets"
+            exportTitle="My Tickets Report"
+            title="Request log"
+            emptyTitle="No requests match the current search"
+            emptyMessage="Try a different keyword or clear the search."
+            searchValue={dashboardSearch}
+            onSearchChange={setDashboardSearch}
+            searchPlaceholder="Search title, request type, building, status, or urgency"
+            searchAccessor={(ticket) => [
+              ticket.id,
+              ticket.title,
+              getTicketRequestTypeLabel(ticket),
+              getTicketBuildingName(ticket),
+              ticket.location,
+              ticket.status,
+              ticket.urgency,
+            ].join(" ")}
+          />
+        )}
+      </MotionCardSurface>
+
       <Modal open={Boolean(selectedTicket) || selectedLoading} title="Ticket Details" onClose={() => setSelectedTicket(null)}>
         {selectedLoading && <LoadingSpinner label="Loading details..." />}
         {selectedTicket && (
@@ -460,52 +831,36 @@ export const StudentDashboard = () => {
                 </div>
               </div>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{selectedTicket.ticket.description}</p>
-              <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
-                {titleCase(selectedTicket.ticket.category)}  |  {selectedTicket.ticket.building}  |  {selectedTicket.ticket.location}
-              </p>
+              <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">{getTicketRequestTypeLabel(selectedTicket.ticket)} | {getTicketLocationSummary(selectedTicket.ticket)}</p>
             </div>
-
             <div>
               <h4 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Status Timeline</h4>
               <TicketTimeline logs={selectedTicket.logs} />
             </div>
-
             {selectedTicket.rating && (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-700/30 dark:bg-emerald-900/20">
                 <h4 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Your Rating</h4>
                 <div className="mt-2 flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Star key={s} size={16} className={s <= selectedTicket.rating.stars ? "text-amber-400 fill-amber-400" : "text-gray-300"} />
-                  ))}
+                  {[1, 2, 3, 4, 5].map((star) => <Star key={star} size={16} className={star <= selectedTicket.rating.stars ? "fill-amber-400 text-amber-400" : "text-gray-300"} />)}
                   <span className="ml-2 text-sm text-emerald-700 dark:text-emerald-200">{selectedTicket.rating.stars}/5</span>
                 </div>
                 {selectedTicket.rating.comment && <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-200">{selectedTicket.rating.comment}</p>}
               </div>
             )}
-
             {canRate && (
               <form onSubmit={submitRating} className="rounded-2xl border border-gray-200 p-4 dark:border-slate-700">
                 <h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Rate Resolution</h4>
                 <div className="mt-3 flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <button key={s} type="button" onClick={() => setRating((p) => ({ ...p, stars: s }))} className="interactive-control p-0.5 transition-transform hover:scale-110">
-                      <Star size={24} className={s <= rating.stars ? "text-amber-400 fill-amber-400" : "text-gray-300 dark:text-gray-600"} />
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button key={star} type="button" onClick={() => setRating((current) => ({ ...current, stars: star }))} className="interactive-control p-0.5 transition-transform hover:scale-110">
+                      <Star size={24} className={star <= rating.stars ? "fill-amber-400 text-amber-400" : "text-gray-300 dark:text-gray-600"} />
                     </button>
                   ))}
                   <span className="ml-2 text-sm font-medium text-gray-500">{rating.stars}/5</span>
                 </div>
-                <textarea
-                  rows={3}
-                  placeholder="Add a comment about the resolution..."
-                  value={rating.comment}
-                  onChange={(e) => setRating((p) => ({ ...p, comment: e.target.value }))}
-                  className="mt-3 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                />
+                <textarea rows={3} placeholder="Add a comment about the resolution..." value={rating.comment} onChange={(event) => setRating((current) => ({ ...current, comment: event.target.value }))} className="mt-3 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
                 {ratingError && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{ratingError}</p>}
-                <button disabled={ratingLoading} className="btn-primary interactive-control mt-3">
-                  <Star size={15} />
-                  {ratingLoading ? "Submitting..." : "Submit Rating"}
-                </button>
+                <button disabled={ratingLoading} className="btn-primary interactive-control mt-3"><Star size={15} />{ratingLoading ? "Submitting..." : "Submit Rating"}</button>
               </form>
             )}
           </div>
@@ -514,4 +869,3 @@ export const StudentDashboard = () => {
     </div>
   );
 };
-

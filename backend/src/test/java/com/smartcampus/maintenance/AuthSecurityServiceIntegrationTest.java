@@ -14,6 +14,7 @@ import com.smartcampus.maintenance.repository.UserRepository;
 import com.smartcampus.maintenance.security.CustomUserDetailsService;
 import com.smartcampus.maintenance.security.JwtService;
 import com.smartcampus.maintenance.service.AuthService;
+import com.smartcampus.maintenance.service.RequestMetadata;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -29,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest
 @Transactional
 class AuthSecurityServiceIntegrationTest {
+
+    private static final RequestMetadata TEST_METADATA = new RequestMetadata("127.0.0.1", "JUnit");
 
     @Autowired
     private AuthService authService;
@@ -55,7 +58,7 @@ class AuthSecurityServiceIntegrationTest {
     void forgotPasswordUnknownEmailDoesNotCreateResetToken() {
         long before = resetTokenRepository.count();
 
-        authService.forgotPassword("unknown." + UUID.randomUUID() + "@example.com");
+        authService.forgotPassword("unknown." + UUID.randomUUID() + "@example.com", TEST_METADATA);
 
         assertThat(resetTokenRepository.count()).isEqualTo(before);
     }
@@ -64,13 +67,13 @@ class AuthSecurityServiceIntegrationTest {
     void forgotPasswordCooldownPreventsMultipleResetTokens() {
         User user = createUser(true, "password");
 
-        authService.forgotPassword(user.getEmail());
+        authService.forgotPassword(user.getEmail(), TEST_METADATA);
         PasswordResetToken firstToken = resetTokenRepository
                 .findTopByUser_IdAndUsedFalseOrderByCreatedAtDesc(user.getId())
                 .orElseThrow();
         long countAfterFirstRequest = resetTokenRepository.countByUser_IdAndUsedFalse(user.getId());
 
-        authService.forgotPassword(user.getEmail());
+        authService.forgotPassword(user.getEmail(), TEST_METADATA);
         PasswordResetToken secondToken = resetTokenRepository
                 .findTopByUser_IdAndUsedFalseOrderByCreatedAtDesc(user.getId())
                 .orElseThrow();
@@ -85,7 +88,7 @@ class AuthSecurityServiceIntegrationTest {
     void verifyEmailLocksTokenAfterTooManyInvalidAttempts() {
         User user = createUser(false, "password");
 
-        authService.resendVerificationCode(user.getEmail());
+        authService.resendVerificationCode(user.getEmail(), TEST_METADATA);
         EmailVerificationToken activeToken = verificationTokenRepository
                 .findTopByUser_IdAndUsedFalseOrderByCreatedAtDesc(user.getId())
                 .orElseThrow();
@@ -93,12 +96,12 @@ class AuthSecurityServiceIntegrationTest {
         String wrongCode = activeToken.getCode().equals("999999") ? "888888" : "999999";
 
         for (int i = 0; i < 4; i++) {
-            assertThatThrownBy(() -> authService.verifyEmail(user.getEmail(), wrongCode))
+            assertThatThrownBy(() -> authService.verifyEmail(user.getEmail(), wrongCode, TEST_METADATA))
                     .isInstanceOf(BadRequestException.class)
                     .hasMessageContaining("Invalid verification code.");
         }
 
-        assertThatThrownBy(() -> authService.verifyEmail(user.getEmail(), wrongCode))
+        assertThatThrownBy(() -> authService.verifyEmail(user.getEmail(), wrongCode, TEST_METADATA))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Too many invalid attempts");
 
@@ -117,11 +120,11 @@ class AuthSecurityServiceIntegrationTest {
         resetToken.setExpiresAt(LocalDateTime.now().plusMinutes(30));
         resetTokenRepository.save(resetToken);
 
-        assertThatThrownBy(() -> authService.resetPassword(rawResetToken, "OldPass#123"))
+        assertThatThrownBy(() -> authService.resetPassword(rawResetToken, "OldPass#123", TEST_METADATA))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("must be different");
 
-        authService.resetPassword(rawResetToken, "NewPass#123");
+        authService.resetPassword(rawResetToken, "NewPass#123", TEST_METADATA);
 
         User updated = userRepository.findById(user.getId()).orElseThrow();
         assertThat(updated.getTokenVersion()).isEqualTo(1);

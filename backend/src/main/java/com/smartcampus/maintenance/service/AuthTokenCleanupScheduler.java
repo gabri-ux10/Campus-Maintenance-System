@@ -17,14 +17,17 @@ public class AuthTokenCleanupScheduler {
 
     private final PasswordResetTokenRepository resetTokenRepository;
     private final EmailVerificationTokenRepository verificationTokenRepository;
+    private final AuthRefreshTokenService authRefreshTokenService;
     private final long usedTokenRetentionHours;
 
     public AuthTokenCleanupScheduler(
             PasswordResetTokenRepository resetTokenRepository,
             EmailVerificationTokenRepository verificationTokenRepository,
+            AuthRefreshTokenService authRefreshTokenService,
             @Value("${app.auth.used-token-retention-hours:24}") long usedTokenRetentionHours) {
         this.resetTokenRepository = resetTokenRepository;
         this.verificationTokenRepository = verificationTokenRepository;
+        this.authRefreshTokenService = authRefreshTokenService;
         this.usedTokenRetentionHours = usedTokenRetentionHours;
     }
 
@@ -38,11 +41,14 @@ public class AuthTokenCleanupScheduler {
         long removedUsedReset = resetTokenRepository.deleteByUsedTrueAndCreatedAtBefore(usedCutoff);
         long removedExpiredVerification = verificationTokenRepository.deleteByExpiresAtBefore(now);
         long removedUsedVerification = verificationTokenRepository.deleteByUsedTrueAndCreatedAtBefore(usedCutoff);
+        long removedRefreshTokens = authRefreshTokenService.cleanupExpiredOrRevoked(now, usedCutoff);
 
-        long totalRemoved = removedExpiredReset + removedUsedReset + removedExpiredVerification + removedUsedVerification;
+        long totalRemoved = removedExpiredReset + removedUsedReset + removedExpiredVerification + removedUsedVerification
+                + removedRefreshTokens;
         if (totalRemoved > 0) {
-            log.info("Auth token cleanup removed {} records (reset expired {}, reset used {}, verification expired {}, verification used {}).",
-                    totalRemoved, removedExpiredReset, removedUsedReset, removedExpiredVerification, removedUsedVerification);
+            log.info("Auth token cleanup removed {} records (reset expired {}, reset used {}, verification expired {}, verification used {}, refresh {}).",
+                    totalRemoved, removedExpiredReset, removedUsedReset, removedExpiredVerification, removedUsedVerification,
+                    removedRefreshTokens);
         }
     }
 }

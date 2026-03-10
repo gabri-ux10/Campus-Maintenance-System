@@ -1,10 +1,10 @@
 package com.smartcampus.maintenance.dto.ticket;
 
-import com.smartcampus.maintenance.entity.enums.TicketCategory;
 import com.smartcampus.maintenance.entity.enums.UrgencyLevel;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.NotBlank;
 
 public record TicketCreateRequest(
     @NotBlank(message = "Title is required")
@@ -15,12 +15,13 @@ public record TicketCreateRequest(
     @Size(max = 4000, message = "Description must be at most 4000 characters")
     String description,
 
-    @NotNull(message = "Category is required")
-    TicketCategory category,
+    @NotNull(message = "Request type is required")
+    @Positive(message = "Request type is required")
+    Long requestTypeId,
 
-    @NotBlank(message = "Building is required")
-    @Size(max = 120, message = "Building must be at most 120 characters")
-    String building,
+    @NotNull(message = "Building is required")
+    @Positive(message = "Building is required")
+    Long buildingId,
 
     @NotBlank(message = "Location is required")
     @Size(max = 120, message = "Location must be at most 120 characters")

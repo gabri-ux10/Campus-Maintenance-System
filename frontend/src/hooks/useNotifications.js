@@ -8,6 +8,8 @@ export const useNotifications = (enabled = true) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isVisible, setIsVisible] = useState(() => (typeof document === "undefined" ? true : document.visibilityState === "visible"));
+  const pollingEnabled = enabled && isVisible;
 
   const refresh = useCallback(async () => {
     if (!enabled) return;
@@ -27,11 +29,19 @@ export const useNotifications = (enabled = true) => {
   }, [enabled]);
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (typeof document === "undefined") return undefined;
+
+    const syncVisibility = () => setIsVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", syncVisibility);
+    return () => document.removeEventListener("visibilitychange", syncVisibility);
+  }, []);
+
+  useEffect(() => {
+    if (!pollingEnabled) return undefined;
     refresh();
     const timer = window.setInterval(refresh, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [enabled, refresh]);
+  }, [pollingEnabled, refresh]);
 
   const markRead = useCallback(async (id) => {
     await notificationService.markRead(id);

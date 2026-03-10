@@ -24,7 +24,7 @@ public class EmailDeliveryService {
 
     public EmailDeliveryService(
             @Autowired(required = false) JavaMailSender javaMailSender,
-            @Value("${app.email.from:campusfixsystems@gmail.com}") String fromAddress) {
+            @Value("${app.email.from:no-reply@campusfix.local}") String fromAddress) {
         this.javaMailSender = javaMailSender;
         this.fromAddress = fromAddress;
     }

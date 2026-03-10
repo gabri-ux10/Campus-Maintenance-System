@@ -1,36 +1,32 @@
 package com.smartcampus.maintenance.service;
 
+import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.thymeleaf.context.Context;
+import org.thymeleaf.spring6.SpringTemplateEngine;
 
 @Service
 public class EmailService {
 
     private final EmailOutboxService emailOutboxService;
+    private final SpringTemplateEngine templateEngine;
     private final String supportInbox;
     private final String frontendBaseUrl;
 
     public EmailService(
             EmailOutboxService emailOutboxService,
-            @Value("${app.email.support-inbox:${app.email.from:campusfixsystems@gmail.com}}") String supportInbox,
+            SpringTemplateEngine templateEngine,
+            @Value("${app.email.support-inbox:${app.email.from:no-reply@campusfix.local}}") String supportInbox,
             @Value("${app.frontend.base-url:http://localhost:5173}") String frontendBaseUrl) {
         this.emailOutboxService = emailOutboxService;
+        this.templateEngine = templateEngine;
         this.supportInbox = supportInbox;
         this.frontendBaseUrl = frontendBaseUrl;
     }
 
     public void sendWelcomeEmail(String fullName, String toEmail, String loginUrl) {
-        String html = buildBrandedHtml(
-                "Welcome to CampusFix",
-                "Your account is ready",
-                """
-                Your CampusFix account is active. You can now report and track maintenance issues in real time.
-                """,
-                null,
-                "Sign In",
-                loginUrl,
-                "If you did not expect this email, contact CampusFix support.");
         String text = """
                 Hi %s,
 
@@ -38,20 +34,21 @@ public class EmailService {
 
                 If you did not expect this email, contact support.
                 """.formatted(displayName(fullName), loginUrl);
-        sendHtmlEmail(toEmail, "Welcome to CampusFix", text, html);
+        sendBrandedEmail(
+                toEmail,
+                "Welcome to CampusFix",
+                text,
+                "Account ready",
+                "Your CampusFix account is now active.",
+                "You can start reporting and tracking campus maintenance issues from one secure workspace.",
+                null,
+                "Sign In",
+                loginUrl,
+                "If you did not expect this email, contact CampusFix support immediately.");
     }
 
     public void sendVerificationCodeEmail(String fullName, String toEmail, String verificationCode, long expiresInMinutes,
             String verifyUrl) {
-        String html = buildBrandedHtml(
-                "Verify your CampusFix account",
-                "Use this verification code",
-                "Enter the code below to finish creating your account.",
-                verificationCode,
-                "Open Verification Page",
-                verifyUrl,
-                "This code expires in " + expiresInMinutes + " minutes.");
-
         String text = """
                 Hi %s,
 
@@ -60,20 +57,20 @@ public class EmailService {
                 This code expires in %d minutes.
                 Verification page: %s
                 """.formatted(displayName(fullName), verificationCode, expiresInMinutes, verifyUrl);
-
-        sendHtmlEmail(toEmail, "CampusFix: Verify Your Email", text, html);
+        sendBrandedEmail(
+                toEmail,
+                "CampusFix: Verify Your Email",
+                text,
+                "Verify account",
+                "Finish creating your CampusFix account.",
+                "Enter the verification code below, or open the verification page directly from the secure button.",
+                verificationCode,
+                "Open Verification Page",
+                verifyUrl,
+                "This verification code expires in " + expiresInMinutes + " minutes.");
     }
 
     public void sendStaffInviteEmail(String fullName, String toEmail, String acceptUrl, long expiresInHours) {
-        String html = buildBrandedHtml(
-                "CampusFix staff invitation",
-                "You have been invited to CampusFix",
-                "Use the secure button below to set your password and activate your maintenance account.",
-                null,
-                "Accept Invitation",
-                acceptUrl,
-                "This invitation expires in " + expiresInHours + " hour(s).");
-
         String text = """
                 Hi %s,
 
@@ -82,40 +79,80 @@ public class EmailService {
 
                 This invitation expires in %d hour(s).
                 """.formatted(displayName(fullName), acceptUrl, expiresInHours);
-
-        sendHtmlEmail(toEmail, "CampusFix: Staff Invitation", text, html);
+        sendBrandedEmail(
+                toEmail,
+                "CampusFix: Staff Invitation",
+                text,
+                "Maintenance access",
+                "You have been invited to CampusFix.",
+                "Use the secure button below to set your password and activate your maintenance account.",
+                null,
+                "Accept Invitation",
+                acceptUrl,
+                "This invitation expires in " + expiresInHours + " hour(s).");
     }
 
     public void sendTicketCreatedEmail(String toEmail, String ticketTitle, Long ticketId) {
-        sendPlainEmail(toEmail, "CampusFix: Ticket Created",
-                "Your ticket \"" + ticketTitle + "\" (ID: " + ticketId + ") has been submitted successfully.");
+        String text = "Your ticket \"" + ticketTitle + "\" (ID: " + ticketId + ") has been submitted successfully.";
+        sendBrandedEmail(
+                toEmail,
+                "CampusFix: Ticket Created",
+                text,
+                "Request received",
+                "Your maintenance request has been submitted.",
+                "CampusFix recorded your request and the operations team can now review it.",
+                "#" + ticketId,
+                "Open CampusFix",
+                frontendBaseUrl,
+                "Keep this ticket ID for future reference: #" + ticketId + ".");
     }
 
     public void sendTicketAssignedEmail(String toEmail, String ticketTitle, Long ticketId) {
-        sendPlainEmail(toEmail, "CampusFix: New Assignment",
-                "You have been assigned to ticket \"" + ticketTitle + "\" (ID: " + ticketId + ").");
+        String text = "You have been assigned to ticket \"" + ticketTitle + "\" (ID: " + ticketId + ").";
+        sendBrandedEmail(
+                toEmail,
+                "CampusFix: New Assignment",
+                text,
+                "Work assigned",
+                "A new work order is waiting for you.",
+                "Open CampusFix to review the location, urgency, and attached request details.",
+                "#" + ticketId,
+                "Open Work Queue",
+                frontendBaseUrl,
+                "This assignment was generated by CampusFix operations.");
     }
 
     public void sendTicketResolvedEmail(String toEmail, String ticketTitle, Long ticketId) {
-        sendPlainEmail(toEmail, "CampusFix: Ticket Resolved",
-                "Your ticket \"" + ticketTitle + "\" (ID: " + ticketId + ") has been resolved. Please review.");
+        String text = "Your ticket \"" + ticketTitle + "\" (ID: " + ticketId + ") has been resolved. Please review.";
+        sendBrandedEmail(
+                toEmail,
+                "CampusFix: Ticket Resolved",
+                text,
+                "Request resolved",
+                "Your maintenance request has been marked resolved.",
+                "Open CampusFix to review the result, follow-up notes, and rating prompt.",
+                "#" + ticketId,
+                "Review Ticket",
+                frontendBaseUrl,
+                "If the issue is not fully resolved, reply through CampusFix support.");
     }
 
     public void sendSlaBreachEmail(String toEmail, String ticketTitle, Long ticketId) {
-        sendPlainEmail(toEmail, "CampusFix: SLA Breach Alert",
-                "Ticket \"" + ticketTitle + "\" (ID: " + ticketId + ") has breached its SLA deadline.");
+        String text = "Ticket \"" + ticketTitle + "\" (ID: " + ticketId + ") has breached its SLA deadline.";
+        sendBrandedEmail(
+                toEmail,
+                "CampusFix: SLA Breach Alert",
+                text,
+                "SLA alert",
+                "A ticket has breached its response target.",
+                "Open CampusFix immediately to review the delay, assign the next action, and recover service time.",
+                "#" + ticketId,
+                "Open CampusFix",
+                frontendBaseUrl,
+                "This alert was sent because the ticket exceeded its SLA deadline.");
     }
 
     public void sendPasswordResetEmail(String fullName, String toEmail, String resetUrl, long expiresInMinutes) {
-        String html = buildBrandedHtml(
-                "Reset your CampusFix password",
-                "Password reset requested",
-                "Use the secure link below to set a new password.",
-                null,
-                "Reset Password",
-                resetUrl,
-                "This link expires in " + expiresInMinutes + " minutes. If you did not request this, you can ignore this email.");
-
         String text = """
                 Hi %s,
 
@@ -124,20 +161,20 @@ public class EmailService {
 
                 This link expires in %d minutes.
                 """.formatted(displayName(fullName), resetUrl, expiresInMinutes);
-
-        sendHtmlEmail(toEmail, "CampusFix: Password Reset Request", text, html);
+        sendBrandedEmail(
+                toEmail,
+                "CampusFix: Password Reset Request",
+                text,
+                "Password reset",
+                "Reset your CampusFix password.",
+                "Use the secure link below to choose a new password for your account.",
+                null,
+                "Reset Password",
+                resetUrl,
+                "This link expires in " + expiresInMinutes + " minutes. If you did not request this, you can ignore this email.");
     }
 
     public void sendPasswordChangedEmail(String fullName, String toEmail, String loginUrl) {
-        String html = buildBrandedHtml(
-                "Your password was changed",
-                "Password updated successfully",
-                "Your CampusFix password has been changed. If this was not you, contact support immediately.",
-                null,
-                "Sign In",
-                loginUrl,
-                "For security, always keep your password private and unique.");
-
         String text = """
                 Hi %s,
 
@@ -146,8 +183,17 @@ public class EmailService {
 
                 Sign in: %s
                 """.formatted(displayName(fullName), loginUrl);
-
-        sendHtmlEmail(toEmail, "CampusFix: Password Changed", text, html);
+        sendBrandedEmail(
+                toEmail,
+                "CampusFix: Password Changed",
+                text,
+                "Security notice",
+                "Your password was changed successfully.",
+                "If this was not you, contact support immediately and sign in to review your account activity.",
+                null,
+                "Sign In",
+                loginUrl,
+                "For security, keep your password unique and never share it.");
     }
 
     public void sendSupportRequestEmail(String fullName, String fromEmail, String category, String subject, String message) {
@@ -168,72 +214,32 @@ public class EmailService {
         emailOutboxService.enqueue(to, subject, body, null);
     }
 
-    private void sendHtmlEmail(String to, String subject, String plainText, String html) {
-        emailOutboxService.enqueue(to, subject, plainText, html);
-    }
-
-    private String buildBrandedHtml(
-            String title,
+    private void sendBrandedEmail(
+            String to,
+            String subject,
+            String plainText,
+            String eyebrow,
             String heading,
             String intro,
-            String code,
+            String highlightValue,
             String buttonLabel,
             String buttonUrl,
             String note) {
-        String safeTitle = htmlEscape(title);
-        String safeHeading = htmlEscape(heading);
-        String safeIntro = htmlEscape(intro);
-        String safeCode = code == null ? "" : htmlEscape(code);
-        String safeButtonLabel = buttonLabel == null ? "" : htmlEscape(buttonLabel);
-        String safeButtonUrl = buttonUrl == null ? frontendBaseUrl : htmlEscape(buttonUrl);
-        String safeNote = note == null ? "" : htmlEscape(note);
-
-        String codeBlock = StringUtils.hasText(code)
-                ? "<div style=\"margin:20px 0;text-align:center;\"><span style=\"display:inline-block;padding:12px 22px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;font-size:28px;font-weight:700;letter-spacing:6px;color:#1D4ED8;\">"
-                        + safeCode + "</span></div>"
-                : "";
-
-        String ctaBlock = StringUtils.hasText(buttonLabel) && StringUtils.hasText(buttonUrl)
-                ? "<div style=\"margin:20px 0 18px 0;text-align:center;\"><a href=\"" + safeButtonUrl
-                        + "\" style=\"display:inline-block;background:#2563EB;color:#FFFFFF;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;\">"
-                        + safeButtonLabel + "</a></div>"
-                : "";
-
-        return """
-                <!doctype html>
-                <html>
-                  <body style="margin:0;padding:0;background:#F1F5F9;font-family:Segoe UI,Roboto,Arial,sans-serif;color:#0F172A;">
-                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="padding:22px 12px;">
-                      <tr>
-                        <td align="center">
-                          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background:#FFFFFF;border-radius:14px;overflow:hidden;border:1px solid #E2E8F0;">
-                            <tr>
-                              <td style="padding:20px 24px;background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#FFFFFF;">
-                                <div style="font-size:20px;font-weight:700;letter-spacing:0.2px;">CampusFix</div>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style="padding:26px 24px 18px 24px;">
-                                <p style="margin:0;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#64748B;">%s</p>
-                                <h1 style="margin:10px 0 8px 0;font-size:24px;line-height:1.3;color:#0F172A;">%s</h1>
-                                <p style="margin:0;font-size:15px;line-height:1.6;color:#334155;">%s</p>
-                                %s
-                                %s
-                                <p style="margin:14px 0 0 0;font-size:13px;line-height:1.5;color:#64748B;">%s</p>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style="padding:14px 24px 22px 24px;border-top:1px solid #E2E8F0;color:#64748B;font-size:12px;line-height:1.5;">
-                                CampusFix Systems | Smart Campus Maintenance Platform
-                              </td>
-                            </tr>
-                          </table>
-                        </td>
-                      </tr>
-                    </table>
-                  </body>
-                </html>
-                """.formatted(safeTitle, safeHeading, safeIntro, codeBlock, ctaBlock, safeNote);
+        Context context = new Context();
+        context.setVariable("subject", subject);
+        context.setVariable("eyebrow", eyebrow);
+        context.setVariable("heading", heading);
+        context.setVariable("intro", intro);
+        context.setVariable("highlightValue", highlightValue);
+        context.setVariable("buttonLabel", buttonLabel);
+        context.setVariable("buttonUrl", buttonUrl);
+        context.setVariable("note", note);
+        context.setVariable("footerTitle", "CampusFix Systems");
+        context.setVariable("footerCopy", List.of(
+                "Smart campus maintenance platform",
+                "Secure, transactional service communication"));
+        String html = templateEngine.process("email/transaction", context);
+        emailOutboxService.enqueue(to, subject, plainText, html);
     }
 
     private String displayName(String fullName) {
@@ -242,24 +248,4 @@ public class EmailService {
         }
         return fullName.trim();
     }
-
-    private String htmlEscape(String input) {
-        if (input == null) {
-            return "";
-        }
-        StringBuilder out = new StringBuilder(input.length());
-        for (char c : input.toCharArray()) {
-            switch (c) {
-                case '&' -> out.append("&amp;");
-                case '<' -> out.append("&lt;");
-                case '>' -> out.append("&gt;");
-                case '"' -> out.append("&quot;");
-                case '\'' -> out.append("&#39;");
-                default -> out.append(c);
-            }
-        }
-        return out.toString();
-    }
 }
-
-

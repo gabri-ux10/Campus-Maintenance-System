@@ -46,6 +46,14 @@ public class JwtService {
             .compact();
     }
 
+    public Instant resolveExpirationInstant() {
+        return Instant.now().plusMillis(expirationMs);
+    }
+
+    public long getExpirationMs() {
+        return expirationMs;
+    }
+
     public String extractUsername(String token) {
         return parseClaims(token).getSubject();
     }

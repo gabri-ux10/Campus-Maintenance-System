@@ -7,11 +7,17 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface BuildingRepository extends JpaRepository<Building, Long> {
 
-    List<Building> findByActiveTrueOrderByNameAsc();
+    List<Building> findByActiveTrueOrderBySortOrderAscNameAsc();
 
-    Optional<Building> findByName(String name);
+    List<Building> findAllByOrderBySortOrderAscNameAsc();
 
-    boolean existsByName(String name);
+    Optional<Building> findByNameIgnoreCase(String name);
 
-    boolean existsByCode(String code);
+    boolean existsByNameIgnoreCase(String name);
+
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
+
+    boolean existsByCodeIgnoreCase(String code);
+
+    boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
 }

@@ -18,13 +18,15 @@ CampusFix frontend for students, maintenance staff, and admins.
 ## Local Setup
 
 ```bash
+cp .env.example .env
+# Windows PowerShell: copy .env.example .env
 npm install
 npm run dev
 ```
 
 Frontend URL: `http://localhost:5173`
 
-The dev server proxies `/api` requests to `http://localhost:8080` (see `vite.config.js`).
+The dev server proxies `/api` requests to `VITE_DEV_PROXY_TARGET` (defaults to `http://localhost:8080`).
 
 ## Build
 
@@ -32,6 +34,11 @@ The dev server proxies `/api` requests to `http://localhost:8080` (see `vite.con
 npm run build
 npm run preview
 ```
+
+For production builds, set:
+
+- `VITE_API_BASE_URL=/api` when the frontend and backend share the same origin or reverse proxy
+- `VITE_API_BASE_URL=https://api.example.com/api` when the API is hosted separately
 
 ## Lint
 

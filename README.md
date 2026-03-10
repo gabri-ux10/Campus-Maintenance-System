@@ -15,7 +15,7 @@ CampusFix is a role-based campus maintenance platform for students, maintenance 
 - `database/` MySQL schema and seed scripts
 - `documentation/` setup, testing, deployment, and architecture docs
 - `devops/` Docker and Kubernetes manifests
-- `cpp-optimization/` optional research module (not required to run core app)
+- `cpp-optimization/` optional JNI native module for assignment scoring and safe upload optimization (not required to run core app)
 - `uploads/` runtime upload storage
 
 ## Prerequisites
@@ -78,12 +78,15 @@ Note: The backend can also bootstrap an admin user from `backend/.env` values.
 - Forgot password sends a reset link.
 - Successful reset sends a confirmation email.
 - Configure SMTP in `backend/.env`.
+- Recommended production provider: Resend via SMTP with a verified custom sender domain.
 
 If SMTP is not configured, set `APP_EMAIL_ENABLED=false` for local testing.
 
 ## Docker (Optional)
 
 ```bash
+copy backend/.env.example backend/.env
+# set strong secrets before starting
 docker compose up --build
 ```
 
@@ -93,6 +96,13 @@ Services:
 - Backend: `localhost:8080`
 - Frontend: `localhost:3000`
 
+For production-style deployments:
+
+- Set `SPRING_PROFILES_ACTIVE=prod`
+- Replace all placeholder secrets
+- Set `APP_CORS_ALLOWED_ORIGINS` and `FRONTEND_BASE_URL` to real public hosts
+- Mount persistent storage for uploads
+
 ## Documentation Index
 
 - `documentation/README.md`
@@ -101,6 +111,7 @@ Services:
 - `documentation/guides/troubleshooting.md`
 - `documentation/guides/deployment-guide.md`
 - `documentation/guides/admin-credentials-setup.md`
+- `documentation/guides/email-production-checklist.md`
 
 ## Verification Commands
 

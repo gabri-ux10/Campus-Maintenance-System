@@ -1,0 +1,59 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <title th:text="${subject}">CampusFix</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f7fb;font-family:'Segoe UI',Arial,sans-serif;color:#102033;">
+  <!--[if mso]><span style="display:none;"><![endif]-->
+  <span th:if="${preheader != null and !#strings.isEmpty(preheader)}" style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f4f7fb;" th:text="${preheader}">&#8199;&#65279;&#847;</span>
+  <!--[if mso]></span><![endif]-->
+
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:28px 12px;background:#f4f7fb;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="620" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #d7e2ee;border-radius:20px;overflow:hidden;">
+          <tr>
+            <td style="padding:24px 28px;background:linear-gradient(135deg,#102033,#1d63ed);color:#ffffff;">
+              <p style="margin:0;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:rgba(255,255,255,0.72);">CampusFix Systems</p>
+              <h1 style="margin:10px 0 0 0;font-size:24px;line-height:1.2;font-weight:700;" th:text="${subject}">CampusFix</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:30px 28px 26px 28px;">
+              <p style="margin:0;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#1d63ed;" th:text="${eyebrow}">Status</p>
+              <h2 style="margin:12px 0 10px 0;font-size:28px;line-height:1.2;color:#102033;font-weight:700;" th:text="${heading}">Heading</h2>
+              <p style="margin:0;font-size:15px;line-height:1.7;color:#41556b;" th:text="${intro}">Intro copy.</p>
+
+              <div th:if="${highlightValue != null and !#strings.isEmpty(highlightValue)}" style="margin:22px 0 0 0;padding:18px 20px;border-radius:18px;background:#f4f7fb;border:1px solid #d7e2ee;text-align:center;">
+                <p style="margin:0;font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#5f7583;">Reference</p>
+                <p style="margin:10px 0 0 0;font-size:26px;font-weight:800;letter-spacing:4px;color:#1d63ed;" th:text="${highlightValue}">000000</p>
+              </div>
+
+              <div th:if="${buttonLabel != null and !#strings.isEmpty(buttonLabel) and buttonUrl != null and !#strings.isEmpty(buttonUrl)}" style="margin:24px 0 0 0;">
+                <a th:href="${buttonUrl}" style="display:inline-block;padding:14px 24px;border-radius:14px;background:#1d63ed;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;">
+                  <span th:text="${buttonLabel}">Open CampusFix</span>
+                </a>
+              </div>
+
+              <p th:if="${note != null and !#strings.isEmpty(note)}" style="margin:20px 0 0 0;font-size:13px;line-height:1.6;color:#5f7583;" th:text="${note}">Note</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 28px 28px 28px;border-top:1px solid #d7e2ee;background:#fbfcff;">
+              <p style="margin:0;font-size:13px;font-weight:700;color:#102033;" th:text="${footerTitle}">CampusFix Systems</p>
+              <p style="margin:8px 0 0 0;font-size:12px;line-height:1.6;color:#5f7583;">
+                <span th:each="item,iter : ${footerCopy}">
+                  <span th:text="${item}">Footer copy</span><span th:if="${!iter.last}">&nbsp;&bull;&nbsp;</span>
+                </span>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

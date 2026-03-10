@@ -56,12 +56,16 @@ export const evaluatePassword = (password, { username = "", email = "", fullName
     noPersonalInfo: !identityTokenHit,
   };
 
-  let level = "low";
-  if (value.length >= 14 && classes === 4 && checks.noPersonalInfo && checks.notCommon) {
-    level = "high";
-  } else if (value.length >= 10 && classes >= 3) {
-    level = "medium";
-  }
+  const requirements = [
+    { id: "minLength", label: "At least 10 characters", met: checks.minLength },
+    { id: "hasUpper", label: "Uppercase letter", met: checks.hasUpper },
+    { id: "hasLower", label: "Lowercase letter", met: checks.hasLower },
+    { id: "hasDigit", label: "Number", met: checks.hasDigit },
+    { id: "hasSymbol", label: "Special character", met: checks.hasSymbol },
+    { id: "noWhitespace", label: "No spaces", met: checks.noWhitespace },
+    { id: "notCommon", label: "Not a common password", met: checks.notCommon },
+    { id: "noPersonalInfo", label: "Does not include your personal details", met: checks.noPersonalInfo },
+  ];
 
   const valid =
     checks.minLength &&
@@ -73,14 +77,20 @@ export const evaluatePassword = (password, { username = "", email = "", fullName
     checks.notCommon &&
     checks.noPersonalInfo;
 
-  const messages = [];
-  if (!checks.minLength) messages.push("At least 10 characters");
-  if (!(checks.hasLower && checks.hasUpper && checks.hasDigit && checks.hasSymbol)) {
-    messages.push("Use uppercase, lowercase, number, and symbol");
+  const metCount = requirements.filter((requirement) => requirement.met).length;
+  let score = value ? Math.max(1, Math.round((metCount / requirements.length) * 5)) : 0;
+  if (value.length >= 14 && classes === 4) {
+    score = Math.min(5, score + 1);
   }
-  if (!checks.noWhitespace) messages.push("No spaces allowed");
-  if (!checks.notCommon) messages.push("Password is too common");
-  if (!checks.noPersonalInfo) messages.push("Avoid personal identifiers");
 
-  return { valid, level, checks, messages };
+  let level = "low";
+  if (valid && score >= 5) {
+    level = "high";
+  } else if (score >= 3) {
+    level = "medium";
+  }
+
+  const messages = requirements.filter((requirement) => !requirement.met).map((requirement) => requirement.label);
+
+  return { valid, level, checks, messages, requirements, score };
 };

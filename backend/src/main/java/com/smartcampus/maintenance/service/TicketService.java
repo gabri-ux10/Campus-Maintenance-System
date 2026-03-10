@@ -5,6 +5,7 @@ import com.smartcampus.maintenance.dto.ticket.CommentResponse;
 import com.smartcampus.maintenance.dto.ticket.DuplicateCheckResponse;
 import com.smartcampus.maintenance.dto.ticket.DuplicateCheckResponse.SimilarTicketSummary;
 import com.smartcampus.maintenance.dto.ticket.TicketAssignRequest;
+import com.smartcampus.maintenance.dto.ticket.TicketAssignmentRecommendationResponse;
 import com.smartcampus.maintenance.dto.ticket.TicketCreateRequest;
 import com.smartcampus.maintenance.dto.ticket.TicketDetailResponse;
 import com.smartcampus.maintenance.dto.ticket.TicketLogResponse;
@@ -12,6 +13,8 @@ import com.smartcampus.maintenance.dto.ticket.TicketRateRequest;
 import com.smartcampus.maintenance.dto.ticket.TicketRatingResponse;
 import com.smartcampus.maintenance.dto.ticket.TicketResponse;
 import com.smartcampus.maintenance.dto.ticket.TicketStatusUpdateRequest;
+import com.smartcampus.maintenance.entity.Building;
+import com.smartcampus.maintenance.entity.RequestType;
 import com.smartcampus.maintenance.entity.Ticket;
 import com.smartcampus.maintenance.entity.TicketComment;
 import com.smartcampus.maintenance.entity.TicketLog;
@@ -33,7 +36,10 @@ import com.smartcampus.maintenance.repository.TicketRatingRepository;
 import com.smartcampus.maintenance.repository.TicketRepository;
 import com.smartcampus.maintenance.repository.TicketSpecifications;
 import com.smartcampus.maintenance.repository.UserRepository;
+import com.smartcampus.maintenance.service.TicketAttachmentAccessService.AttachmentType;
+import com.smartcampus.maintenance.util.ServiceDomainCatalog;
 import com.smartcampus.maintenance.util.FileStorageService;
+import com.smartcampus.maintenance.util.FileStorageService.StoredFile;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -41,6 +47,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -59,7 +70,11 @@ public class TicketService {
     private final TicketRatingRepository ticketRatingRepository;
     private final TicketCommentRepository ticketCommentRepository;
     private final UserRepository userRepository;
+    private final BuildingService buildingService;
+    private final CatalogService catalogService;
+    private final AutoAssignmentService autoAssignmentService;
     private final FileStorageService fileStorageService;
+    private final TicketAttachmentAccessService ticketAttachmentAccessService;
     private final NotificationDispatchService notificationDispatchService;
     private final EmailService emailService;
 
@@ -69,7 +84,11 @@ public class TicketService {
             TicketRatingRepository ticketRatingRepository,
             TicketCommentRepository ticketCommentRepository,
             UserRepository userRepository,
+            BuildingService buildingService,
+            CatalogService catalogService,
+            AutoAssignmentService autoAssignmentService,
             FileStorageService fileStorageService,
+            TicketAttachmentAccessService ticketAttachmentAccessService,
             NotificationDispatchService notificationDispatchService,
             EmailService emailService) {
         this.ticketRepository = ticketRepository;
@@ -77,7 +96,11 @@ public class TicketService {
         this.ticketRatingRepository = ticketRatingRepository;
         this.ticketCommentRepository = ticketCommentRepository;
         this.userRepository = userRepository;
+        this.buildingService = buildingService;
+        this.catalogService = catalogService;
+        this.autoAssignmentService = autoAssignmentService;
         this.fileStorageService = fileStorageService;
+        this.ticketAttachmentAccessService = ticketAttachmentAccessService;
         this.notificationDispatchService = notificationDispatchService;
         this.emailService = emailService;
     }
@@ -85,12 +108,17 @@ public class TicketService {
     @Transactional
     public TicketResponse createTicket(User actor, TicketCreateRequest request, MultipartFile imageFile) {
         requireRole(actor, Role.STUDENT);
+        Building building = buildingService.requireActiveBuilding(request.buildingId());
+        RequestType requestType = catalogService.requireActiveRequestType(request.requestTypeId());
+        String serviceDomainKey = requestType.getServiceDomain().getKey();
 
         Ticket ticket = new Ticket();
         ticket.setTitle(request.title().trim());
         ticket.setDescription(request.description().trim());
-        ticket.setCategory(request.category());
-        ticket.setBuilding(request.building().trim());
+        ticket.setRequestType(requestType);
+        ticket.setCategory(ServiceDomainCatalog.legacyCategoryForKey(serviceDomainKey));
+        ticket.setBuildingRecord(building);
+        ticket.setBuilding(building.getName());
         ticket.setLocation(request.location().trim());
         ticket.setUrgency(request.urgency());
         ticket.setStatus(TicketStatus.SUBMITTED);
@@ -105,26 +133,30 @@ public class TicketService {
                 NotificationType.TICKET_UPDATE,
                 ticketLink(saved));
         emailService.sendTicketCreatedEmail(actor.getEmail(), saved.getTitle(), saved.getId());
-        return TicketMapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
     public List<TicketResponse> getAllTickets(
             User actor,
             TicketStatus status,
-            TicketCategory category,
+            String serviceDomainKey,
+            Long requestTypeId,
+            Long buildingId,
             UrgencyLevel urgency,
             Long assigneeId,
             String search) {
         requireRole(actor, Role.ADMIN);
-        Specification<Ticket> specification = Specification
-                .where(TicketSpecifications.statusEquals(status))
-                .and(TicketSpecifications.categoryEquals(category))
-                .and(TicketSpecifications.urgencyEquals(urgency))
-                .and(TicketSpecifications.assigneeEquals(assigneeId))
-                .and(TicketSpecifications.searchLike(search));
+        Specification<Ticket> specification = Specification.allOf(
+                TicketSpecifications.statusEquals(status),
+                TicketSpecifications.serviceDomainKeyEquals(serviceDomainKey),
+                TicketSpecifications.requestTypeEquals(requestTypeId),
+                TicketSpecifications.buildingEquals(buildingId),
+                TicketSpecifications.urgencyEquals(urgency),
+                TicketSpecifications.assigneeEquals(assigneeId),
+                TicketSpecifications.searchLike(search));
         return ticketRepository.findAll(specification, Sort.by(Sort.Direction.DESC, "createdAt")).stream()
-                .map(TicketMapper::toResponse)
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -132,7 +164,7 @@ public class TicketService {
     public List<TicketResponse> getMyTickets(User actor) {
         requireRole(actor, Role.STUDENT);
         return ticketRepository.findByCreatedByIdOrderByCreatedAtDesc(actor.getId()).stream()
-                .map(TicketMapper::toResponse)
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -140,7 +172,7 @@ public class TicketService {
     public List<TicketResponse> getAssignedTickets(User actor) {
         requireRole(actor, Role.MAINTENANCE);
         return ticketRepository.findByAssignedToIdOrderByCreatedAtDesc(actor.getId()).stream()
-                .map(TicketMapper::toResponse)
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -155,7 +187,17 @@ public class TicketService {
         TicketRatingResponse rating = ticketRatingRepository.findByTicketId(ticketId)
                 .map(TicketMapper::toRatingResponse)
                 .orElse(null);
-        return new TicketDetailResponse(TicketMapper.toResponse(ticket), logs, rating);
+        return new TicketDetailResponse(toResponse(ticket), logs, rating);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TicketAssignmentRecommendationResponse> getAssignmentRecommendations(Long ticketId, User actor) {
+        requireRole(actor, Role.ADMIN);
+        Ticket ticket = requireTicket(ticketId);
+        if (ticket.getStatus() != TicketStatus.APPROVED) {
+            throw new ConflictException("Ticket must be APPROVED before recommendations are available");
+        }
+        return autoAssignmentService.recommendAssignees(ticket, 3);
     }
 
     @Transactional(readOnly = true)
@@ -199,7 +241,7 @@ public class TicketService {
                 NotificationType.TICKET_UPDATE,
                 ticketLink(saved));
         emailService.sendTicketAssignedEmail(assignee.getEmail(), saved.getTitle(), saved.getId());
-        return TicketMapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     @Transactional
@@ -230,7 +272,7 @@ public class TicketService {
         if (targetStatus == TicketStatus.RESOLVED) {
             emailService.sendTicketResolvedEmail(saved.getCreatedBy().getEmail(), saved.getTitle(), saved.getId());
         }
-        return TicketMapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     @Transactional
@@ -254,6 +296,32 @@ public class TicketService {
         rating.setComment(request.comment() == null ? null : request.comment().trim());
         TicketRating saved = ticketRatingRepository.save(rating);
         return TicketMapper.toRatingResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public ResponseEntity<Resource> downloadAttachment(
+            Long ticketId,
+            String attachmentType,
+            Long expiresAt,
+            String signature) {
+        Ticket ticket = requireTicket(ticketId);
+        AttachmentType type = AttachmentType.fromPathSegment(attachmentType);
+        String storedPath = type == AttachmentType.BEFORE ? ticket.getImagePath() : ticket.getAfterImagePath();
+        if (!StringUtils.hasText(signature) || expiresAt == null) {
+            throw new ForbiddenException("Attachment access is invalid or has expired.");
+        }
+        if (!StringUtils.hasText(storedPath)) {
+            throw new NotFoundException("Attachment not found");
+        }
+        ticketAttachmentAccessService.validate(ticket, type, storedPath, expiresAt, signature);
+
+        StoredFile storedFile = fileStorageService.load(storedPath);
+        MediaType mediaType = MediaType.parseMediaType(storedFile.contentType());
+        Resource resource = new FileSystemResource(storedFile.path());
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .cacheControl(CacheControl.noStore())
+                .body(resource);
     }
 
     private void ensureCanUpdateStatus(Ticket ticket, TicketStatusUpdateRequest request, User actor) {
@@ -385,8 +453,10 @@ public class TicketService {
     @Transactional(readOnly = true)
     public DuplicateCheckResponse checkDuplicates(TicketCreateRequest request) {
         EnumSet<TicketStatus> closedStatuses = EnumSet.of(TicketStatus.CLOSED, TicketStatus.REJECTED);
-        List<Ticket> candidates = ticketRepository.findByCategoryAndBuildingAndStatusNotIn(
-                request.category(), request.building().trim(), closedStatuses);
+        RequestType requestType = catalogService.requireActiveRequestType(request.requestTypeId());
+        Building building = buildingService.requireActiveBuilding(request.buildingId());
+        List<Ticket> candidates = ticketRepository.findByRequestTypeIdAndBuildingRecordIdAndStatusNotIn(
+                requestType.getId(), building.getId(), closedStatuses);
 
         String inputTitle = request.title().trim().toLowerCase();
         List<SimilarTicketSummary> similar = candidates.stream()
@@ -394,14 +464,14 @@ public class TicketService {
                 .limit(5)
                 .map(t -> new SimilarTicketSummary(
                         t.getId(), t.getTitle(), t.getStatus().name(),
-                        t.getBuilding(), t.getCategory().name()))
+                        resolveBuildingName(t), TicketMapper.resolveServiceDomainKey(t)))
                 .toList();
 
         if (similar.isEmpty()) {
             return new DuplicateCheckResponse(false, List.of(), "No similar reports found.");
         }
         return new DuplicateCheckResponse(true, similar,
-                "Found " + similar.size() + " similar report(s) in " + request.building() + ". You may still submit.");
+                "Found " + similar.size() + " similar report(s) in " + building.getName() + ". You may still submit.");
     }
 
     private double similarity(String a, String b) {
@@ -454,7 +524,7 @@ public class TicketService {
                 "After photo uploaded for ticket #" + saved.getId(),
                 "After-repair photo is now available for \"" + saved.getTitle() + "\".",
                 NotificationType.TICKET_UPDATE);
-        return TicketMapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     private void notifyAdmins(String title, String message, NotificationType type, String linkUrl) {
@@ -487,5 +557,19 @@ public class TicketService {
 
     private String ticketLink(Ticket ticket) {
         return "/tickets/" + ticket.getId();
+    }
+
+    private TicketResponse toResponse(Ticket ticket) {
+        return TicketMapper.toResponse(
+                ticket,
+                ticketAttachmentAccessService.buildSignedUrl(ticket, AttachmentType.BEFORE, ticket.getImagePath()),
+                ticketAttachmentAccessService.buildSignedUrl(ticket, AttachmentType.AFTER, ticket.getAfterImagePath()));
+    }
+
+    private String resolveBuildingName(Ticket ticket) {
+        if (ticket.getBuildingRecord() != null) {
+            return ticket.getBuildingRecord().getName();
+        }
+        return ticket.getBuilding();
     }
 }

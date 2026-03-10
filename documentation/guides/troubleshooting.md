@@ -23,7 +23,8 @@
 
 - Set `APP_EMAIL_ENABLED=true`
 - Verify SMTP settings (`MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`)
-- For Gmail, use an app password (not normal account password)
+- For the recommended production setup, verify your Resend sender domain and use a valid Resend API key as `MAIL_PASSWORD`
+- If you are using the optional Gmail local/dev fallback, use a Gmail app password instead of the normal account password
 
 ## Frontend API errors
 

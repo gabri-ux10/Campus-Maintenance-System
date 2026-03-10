@@ -1,7 +1,8 @@
 package com.smartcampus.maintenance.dto.auth;
 
 public record AuthResponse(
-    String token,
+    String accessToken,
+    String expiresAt,
     String username,
     String fullName,
     String role

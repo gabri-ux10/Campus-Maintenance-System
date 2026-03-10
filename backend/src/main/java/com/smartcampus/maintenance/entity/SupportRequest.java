@@ -2,10 +2,13 @@ package com.smartcampus.maintenance.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
@@ -26,6 +29,10 @@ public class SupportRequest {
 
     @Column(nullable = false, length = 80)
     private String category;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "support_category_id")
+    private SupportCategory supportCategory;
 
     @Column(nullable = false, length = 180)
     private String subject;
@@ -74,6 +81,14 @@ public class SupportRequest {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public SupportCategory getSupportCategory() {
+        return supportCategory;
+    }
+
+    public void setSupportCategory(SupportCategory supportCategory) {
+        this.supportCategory = supportCategory;
     }
 
     public String getSubject() {

@@ -1,3 +1,29 @@
+const flattenColorPalette = (colors, prefix = "") => {
+  return Object.entries(colors || {}).reduce((acc, [key, value]) => {
+    if (typeof value === "string") {
+      const nextKey = prefix ? `${prefix}-${key}` : key;
+      acc[nextKey] = value;
+      return acc;
+    }
+    if (typeof value === "object" && value !== null) {
+      const nestedKey = prefix ? `${prefix}-${key}` : key;
+      Object.assign(acc, flattenColorPalette(value, nestedKey));
+    }
+    return acc;
+  }, {});
+};
+
+function addVariablesForColors({ addBase, theme }) {
+  const allColors = flattenColorPalette(theme("colors"));
+  const newVars = Object.fromEntries(
+    Object.entries(allColors).map(([key, val]) => [`--${key}`, val]),
+  );
+
+  addBase({
+    ":root": newVars,
+  });
+}
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"],
@@ -5,37 +31,37 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Manrope"', "system-ui", "sans-serif"],
-        display: ['"Sora"', "system-ui", "sans-serif"],
-        mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
+        sans: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
+        display: ['"Outfit"', "system-ui", "sans-serif"],
+        mono: ["ui-monospace", "SFMono-Regular", "monospace"],
       },
       colors: {
-        ink: "#1F2937",
+        ink: "#102033",
         campus: {
-          50: "#EFF6FF",
-          100: "#DBEAFE",
-          200: "#BFDBFE",
-          300: "#93C5FD",
-          400: "#60A5FA",
-          500: "#3B82F6",
-          600: "#2563EB",
-          700: "#1D4ED8",
-          800: "#1E40AF",
-          900: "#1E3A8A",
+          50: "#EDF4FF",
+          100: "#DCEAFF",
+          200: "#BED7FF",
+          300: "#93BCFF",
+          400: "#5E96F5",
+          500: "#1D63ED",
+          600: "#1954CE",
+          700: "#1546AB",
+          800: "#143B8C",
+          900: "#102F66",
         },
-        muted: "#64748b",
-        sand: "#F4F7F6",
-        ember: "#EF4444",
-        gold: "#F59E0B",
-        mint: "#10B981",
+        muted: "#5E7186",
+        sand: "#F4F7FB",
+        ember: "#C43D3D",
+        gold: "#D9A441",
+        mint: "#0F9D8A",
         surface: {
           light: "#FFFFFF",
-          dark: "#1E293B",
-          "dark-elevated": "#334155",
+          dark: "#102033",
+          "dark-elevated": "#1B3551",
         },
         bg: {
-          light: "#F4F7F6",
-          dark: "#0F172A",
+          light: "#F4F7FB",
+          dark: "#08111B",
         },
       },
       width: {
@@ -47,12 +73,12 @@ export default {
         "sidebar-collapsed": "80px",
       },
       boxShadow: {
-        panel: "0 20px 45px -25px rgba(15, 23, 42, 0.35)",
+        panel: "0 20px 45px -25px rgba(16,32,51,0.28)",
         card: "0 1px 3px rgba(0,0,0,0.06), 0 4px 6px rgba(0,0,0,0.04)",
         "card-hover": "0 4px 12px rgba(0,0,0,0.08), 0 8px 20px rgba(0,0,0,0.06)",
-        dropdown: "0 10px 40px -10px rgba(0,0,0,0.15)",
-        glow: "0 0 20px rgba(59,130,246,0.2)",
-        "glow-lg": "0 0 30px rgba(59,130,246,0.25)",
+        dropdown: "0 10px 40px -10px rgba(16,32,51,0.16)",
+        glow: "0 0 20px rgba(29,99,237,0.18)",
+        "glow-lg": "0 0 30px rgba(29,99,237,0.22)",
       },
       animation: {
         "soft-rise": "soft-rise 0.5s ease-out forwards",
@@ -107,5 +133,5 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [addVariablesForColors],
 };

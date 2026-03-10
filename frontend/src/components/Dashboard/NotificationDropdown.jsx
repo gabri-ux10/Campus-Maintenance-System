@@ -53,7 +53,7 @@ export const NotificationDropdown = ({
   onOpenNotification,
   onMarkAllRead,
 }) => (
-  <div className="animate-slide-in-down absolute right-0 top-full mt-2 w-[390px] overflow-hidden rounded-2xl border border-gray-200/70 bg-white/95 shadow-dropdown backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/95">
+  <div className="animate-slide-in-down absolute right-0 top-full mt-2 w-[min(390px,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-gray-200/70 bg-white/95 shadow-dropdown backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/95">
     <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-slate-700/60">
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Notifications</h3>

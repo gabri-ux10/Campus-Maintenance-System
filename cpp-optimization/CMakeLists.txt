@@ -1,15 +1,38 @@
-cmake_minimum_required(VERSION 3.10)
-project(campus_maintenance_cpp)
+cmake_minimum_required(VERSION 3.20)
+project(campusfix_native LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(assignment_algorithm
+find_package(JNI REQUIRED)
+find_package(JPEG REQUIRED)
+find_package(PNG REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(WEBP REQUIRED IMPORTED_TARGET libwebp)
+
+add_library(campusfix_native SHARED
+    src/assignment_algorithm.cpp
+    src/image_compressor.cpp
+    src/jni_bindings.cpp
+)
+target_include_directories(campusfix_native PRIVATE src include ${JNI_INCLUDE_DIRS})
+target_link_libraries(campusfix_native PRIVATE ${JNI_LIBRARIES} JPEG::JPEG PNG::PNG PkgConfig::WEBP)
+
+add_executable(campusfix_native_bench
+    src/main.cpp
+    src/assignment_algorithm.cpp
+)
+target_include_directories(campusfix_native_bench PRIVATE src include)
+
+enable_testing()
+
+add_executable(campusfix_native_tests
+    tests/native_tests.cpp
     src/assignment_algorithm.cpp
     src/image_compressor.cpp
 )
+target_include_directories(campusfix_native_tests PRIVATE src include)
+target_link_libraries(campusfix_native_tests PRIVATE JPEG::JPEG PNG::PNG PkgConfig::WEBP)
 
-target_include_directories(assignment_algorithm PUBLIC include)
-
-# For JNI bindings
-find_package(JNI REQUIRED)
-target_include_directories(assignment_algorithm PUBLIC ${JNI_INCLUDE_DIRS})
+add_test(NAME campusfix_native_tests COMMAND campusfix_native_tests)

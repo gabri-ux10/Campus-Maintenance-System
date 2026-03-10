@@ -36,7 +36,7 @@ CampusFix uses a standard three-layer web architecture.
 
 ## Optional Modules
 
-- `cpp-optimization/` exists as optional research/extension work and is not required for current backend startup.
+- `cpp-optimization/` exists as an optional JNI native module for assignment scoring and safe image optimization. Backend startup and tests continue to work without it unless native strict mode is enabled.
 
 ## Related Documents
 

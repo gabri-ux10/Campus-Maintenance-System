@@ -36,7 +36,9 @@ export const ticketService = {
   async getAllTickets(filters) {
     const query = buildQuery({
       status: filters?.status,
-      category: filters?.category,
+      serviceDomainKey: filters?.serviceDomainKey,
+      requestTypeId: filters?.requestTypeId,
+      buildingId: filters?.buildingId,
       urgency: filters?.urgency,
       assignee: filters?.assignee,
       search: filters?.search,
@@ -57,6 +59,11 @@ export const ticketService = {
 
   async assignTicket(ticketId, payload) {
     const { data } = await apiClient.patch(`/tickets/${ticketId}/assign`, payload);
+    return data;
+  },
+
+  async getAssignmentRecommendations(ticketId) {
+    const { data } = await apiClient.get(`/tickets/${ticketId}/assignment-recommendations`);
     return data;
   },
 

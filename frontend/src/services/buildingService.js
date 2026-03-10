@@ -1,8 +1,9 @@
 import apiClient from "./apiClient";
 
 export const buildingService = {
-  async getBuildings() {
-    const { data } = await apiClient.get("/buildings");
+  async getBuildings(options = {}) {
+    const query = options.includeArchived ? "?includeArchived=true" : "";
+    const { data } = await apiClient.get(`/buildings${query}`);
     return Array.isArray(data) ? data : [];
   },
 };

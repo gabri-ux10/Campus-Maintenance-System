@@ -1,0 +1,28 @@
+package com.smartcampus.maintenance.dto.building;
+
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+public record BuildingUpdateRequest(
+        @NotBlank(message = "Building name is required")
+        @Size(max = 100, message = "Building name must be at most 100 characters")
+        String name,
+
+        @NotBlank(message = "Building code is required")
+        @Size(max = 20, message = "Building code must be at most 20 characters")
+        String code,
+
+        @Min(value = 1, message = "Floors must be at least 1")
+        @Max(value = 100, message = "Floors must be at most 100")
+        int floors,
+
+        @NotNull(message = "Active flag is required")
+        Boolean active,
+
+        @NotNull(message = "Sort order is required")
+        @Min(value = 0, message = "Sort order must be zero or greater")
+        Integer sortOrder) {
+}

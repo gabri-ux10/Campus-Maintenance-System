@@ -2,20 +2,24 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { useAuth } from "../../hooks/useAuth";
+import { scrollToDashboardSection } from "./scrollToDashboardSection";
 
 const COLLAPSED_KEY = "campusfix-sidebar-collapsed";
+const OPEN_STUDENT_COMPOSER_EVENT = "dashboard:open-student-composer";
 const sectionLabels = {
   dashboard: "Overview",
   analytics: "Analytics",
-  tickets: "Ticket Operations",
-  report: "Report Issue",
+  reports: "Reports",
+  tickets: "Requests",
+  configuration: "Configuration",
+  report: "Submit Issue",
   tracker: "Tracker",
   users: "User Management",
-  staff: "Staff Onboarding",
+  staff: "Staff",
   broadcast: "Broadcast",
-  "work-queue": "Work Queue",
+  "work-queue": "Focus Queue",
   performance: "Performance",
-  resolved: "Resolved",
+  resolved: "Completed",
 };
 
 export const DashboardShell = ({ children }) => {
@@ -23,6 +27,10 @@ export const DashboardShell = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("dashboard");
   const [activeSectionLabel, setActiveSectionLabel] = useState("Overview");
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia("(min-width: 1024px)").matches;
+  });
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(COLLAPSED_KEY) === "true";
@@ -31,6 +39,7 @@ export const DashboardShell = ({ children }) => {
     }
   });
   const role = auth?.role?.toUpperCase() || "STUDENT";
+  const effectiveCollapsed = collapsed && isDesktop;
 
   const toggleCollapse = () => {
     setCollapsed((prev) => {
@@ -49,21 +58,41 @@ export const DashboardShell = ({ children }) => {
     setActiveSection(sectionId);
     setActiveSectionLabel(label || sectionLabels[sectionId] || "Overview");
 
+    if (role === "STUDENT" && sectionId === "report") {
+      window.dispatchEvent(new CustomEvent(OPEN_STUDENT_COMPOSER_EVENT));
+      if (!isDesktop) {
+        setSidebarOpen(false);
+      }
+      return;
+    }
+
     window.dispatchEvent(
       new CustomEvent("dashboard:navigate", {
         detail: { id: sectionId, label: label || "" },
       })
     );
 
-    const target = document.getElementById(sectionId);
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    scrollToDashboardSection(sectionId);
 
-    if (window.innerWidth < 1024) {
+    if (!isDesktop) {
       setSidebarOpen(false);
     }
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const handleViewportChange = (event) => {
+      setIsDesktop(event.matches);
+      if (event.matches) {
+        setSidebarOpen(false);
+      }
+    };
+
+    mediaQuery.addEventListener("change", handleViewportChange);
+    return () => mediaQuery.removeEventListener("change", handleViewportChange);
+  }, []);
 
   useEffect(() => {
     const sections = Array.from(document.querySelectorAll("[data-dashboard-section='true']"));
@@ -115,19 +144,21 @@ export const DashboardShell = ({ children }) => {
       data-dashboard-role={role}
     >
       <div className="dashboard-background" />
+      <div className="dashboard-shape-1" />
+      <div className="dashboard-shape-2" />
 
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        collapsed={collapsed}
+        collapsed={effectiveCollapsed}
         onToggleCollapse={toggleCollapse}
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
       />
 
       <div
-        className={`relative z-10 transition-all duration-300 ease-in-out ${
-          collapsed ? "lg:pl-sidebar-collapsed" : "lg:pl-sidebar"
+        className={`dashboard-content-shell relative z-10 transition-all duration-300 ease-in-out ${
+          effectiveCollapsed ? "lg:pl-sidebar-collapsed" : "lg:pl-sidebar"
         }`}
       >
         <TopBar
@@ -135,8 +166,8 @@ export const DashboardShell = ({ children }) => {
           activeSectionLabel={activeSectionLabel}
         />
 
-        <main className="px-4 pb-8 pt-6 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-[1400px]">{children}</div>
+        <main className="px-4 pb-8 pt-6 sm:px-6 lg:px-8 xl:px-10">
+          <div className="mx-auto max-w-[1480px]">{children}</div>
         </main>
       </div>
     </div>

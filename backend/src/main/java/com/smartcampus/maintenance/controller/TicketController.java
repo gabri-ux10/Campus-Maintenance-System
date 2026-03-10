@@ -4,6 +4,7 @@ import com.smartcampus.maintenance.dto.ticket.CommentCreateRequest;
 import com.smartcampus.maintenance.dto.ticket.CommentResponse;
 import com.smartcampus.maintenance.dto.ticket.DuplicateCheckResponse;
 import com.smartcampus.maintenance.dto.ticket.TicketAssignRequest;
+import com.smartcampus.maintenance.dto.ticket.TicketAssignmentRecommendationResponse;
 import com.smartcampus.maintenance.dto.ticket.TicketCreateRequest;
 import com.smartcampus.maintenance.dto.ticket.TicketDetailResponse;
 import com.smartcampus.maintenance.dto.ticket.TicketLogResponse;
@@ -12,13 +13,14 @@ import com.smartcampus.maintenance.dto.ticket.TicketRatingResponse;
 import com.smartcampus.maintenance.dto.ticket.TicketResponse;
 import com.smartcampus.maintenance.dto.ticket.TicketStatusUpdateRequest;
 import com.smartcampus.maintenance.entity.User;
-import com.smartcampus.maintenance.entity.enums.TicketCategory;
 import com.smartcampus.maintenance.entity.enums.TicketStatus;
 import com.smartcampus.maintenance.entity.enums.UrgencyLevel;
 import com.smartcampus.maintenance.service.CurrentUserService;
 import com.smartcampus.maintenance.service.TicketService;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -64,12 +66,15 @@ public class TicketController {
     @GetMapping
     public List<TicketResponse> getAllTickets(
             @RequestParam(value = "status", required = false) TicketStatus status,
-            @RequestParam(value = "category", required = false) TicketCategory category,
+            @RequestParam(value = "serviceDomainKey", required = false) String serviceDomainKey,
+            @RequestParam(value = "requestTypeId", required = false) Long requestTypeId,
+            @RequestParam(value = "buildingId", required = false) Long buildingId,
             @RequestParam(value = "urgency", required = false) UrgencyLevel urgency,
             @RequestParam(value = "assignee", required = false) Long assigneeId,
             @RequestParam(value = "search", required = false) String search) {
         User actor = currentUserService.requireCurrentUser();
-        return ticketService.getAllTickets(actor, status, category, urgency, assigneeId, search);
+        return ticketService.getAllTickets(actor, status, serviceDomainKey, requestTypeId, buildingId, urgency,
+                assigneeId, search);
     }
 
     @GetMapping("/my")
@@ -88,6 +93,21 @@ public class TicketController {
     public TicketDetailResponse getTicket(@PathVariable Long id) {
         User actor = currentUserService.requireCurrentUser();
         return ticketService.getTicketDetail(id, actor);
+    }
+
+    @GetMapping("/{id}/assignment-recommendations")
+    public List<TicketAssignmentRecommendationResponse> getAssignmentRecommendations(@PathVariable Long id) {
+        User actor = currentUserService.requireCurrentUser();
+        return ticketService.getAssignmentRecommendations(id, actor);
+    }
+
+    @GetMapping("/{id}/attachments/{attachmentType}")
+    public ResponseEntity<Resource> getAttachment(
+            @PathVariable Long id,
+            @PathVariable String attachmentType,
+            @RequestParam(value = "expires", required = false) Long expires,
+            @RequestParam(value = "signature", required = false) String signature) {
+        return ticketService.downloadAttachment(id, attachmentType, expires, signature);
     }
 
     @PatchMapping("/{id}/status")

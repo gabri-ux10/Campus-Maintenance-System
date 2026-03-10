@@ -34,6 +34,7 @@ Set at least:
 - `APP_ADMIN_USERNAME`
 - `APP_ADMIN_EMAIL`
 - `APP_ADMIN_PASSWORD`
+- `SPRING_PROFILES_ACTIVE=dev`
 
 ### 2. Run backend
 
@@ -51,6 +52,8 @@ API base URL: `http://localhost:8080/api`
 - `JWT_SECRET=...`
 - `JWT_EXPIRATION_MS=86400000`
 - `FRONTEND_BASE_URL=http://localhost:5173`
+- `APP_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173`
+- `APP_UPLOAD_DIR=uploads`
 
 Admin bootstrap:
 
@@ -61,13 +64,19 @@ Admin bootstrap:
 
 Email system:
 
-- `APP_EMAIL_ENABLED=false` (set `true` when SMTP is ready)
-- `APP_EMAIL_FROM`
-- `APP_EMAIL_SUPPORT_INBOX`
-- `MAIL_HOST`
+- `APP_EMAIL_ENABLED=false` (set `true` only after your sender domain and SMTP credentials are verified)
+- `APP_EMAIL_FROM=no-reply@mail.example.com`
+- `APP_EMAIL_SUPPORT_INBOX=support@example.com`
+- `MAIL_HOST=smtp.resend.com`
 - `MAIL_PORT`
-- `MAIL_USERNAME`
+- `MAIL_USERNAME=resend`
 - `MAIL_PASSWORD`
+
+Recommended production provider:
+
+- Use Resend via SMTP with a custom sender domain.
+- Keep Gmail only as an optional local/dev fallback with an app password.
+- Configure SPF, DKIM, and DMARC before enabling real sends.
 
 Auth timing:
 
@@ -98,8 +107,11 @@ mvn -q test
 
 ## Notes
 
-- CORS allows frontend dev origin `http://localhost:5173`.
+- Default profile is `dev`; set `SPRING_PROFILES_ACTIVE=prod` in real deployments.
+- CORS is environment-driven through `APP_CORS_ALLOWED_ORIGINS`.
 - Uploaded files are served under `/uploads/**`.
+- Production startup now fails fast on unsafe defaults such as placeholder JWT secrets, H2 fallback, or demo seeding.
+- Transactional email is provider-agnostic in code; production examples in this repo assume Resend SMTP.
 - If DB schema is managed manually, run scripts from `../database/` first.
 
 ## Related Docs

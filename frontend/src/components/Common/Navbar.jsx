@@ -1,8 +1,9 @@
-import { LogOut, Moon, Sun } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
 import { titleCase } from "../../utils/helpers";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export const Navbar = () => {
   const { auth, logout } = useAuth();
@@ -30,13 +31,7 @@ export const Navbar = () => {
             <p className="text-sm font-semibold text-ink dark:text-slate-100">{auth?.fullName || auth?.username}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400">@{auth?.username}</p>
           </div>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="rounded-full border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
+          <ThemeToggle isDark={theme === "dark"} onToggle={() => toggleTheme()} />
           <button
             type="button"
             onClick={onLogout}

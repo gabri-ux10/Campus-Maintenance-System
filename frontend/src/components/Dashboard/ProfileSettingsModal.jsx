@@ -1,5 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { ImagePlus, Loader2, Moon, Palette, Save, Sparkles, Sun, UserRound } from "lucide-react";
+import {
+  Blocks,
+  Bot,
+  Fingerprint,
+  Ghost,
+  ImagePlus,
+  Loader2,
+  Moon,
+  Palette,
+  Save,
+  ScanFace,
+  Sparkles,
+  Sun,
+  UserRound,
+} from "lucide-react";
 import { Modal } from "../Common/Modal";
 import { AVATAR_PRESETS } from "../../utils/profilePreferences";
 import { UserAvatar } from "../Common/UserAvatar";
@@ -21,6 +35,16 @@ const readSidebarCollapsedPreference = () => {
   } catch {
     return false;
   }
+};
+
+const avatarModelIcons = {
+  campus: Fingerprint,
+  adventurer: Sparkles,
+  avataaars: ScanFace,
+  bottts: Bot,
+  lorelei: Ghost,
+  pixel: Blocks,
+  shapes: Palette,
 };
 
 export const ProfileSettingsModal = ({
@@ -166,7 +190,7 @@ export const ProfileSettingsModal = ({
         {tab === "profile" && (
           <div className="grid gap-6 md:grid-cols-[220px,1fr]">
             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Preview</p>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-200">Preview</p>
               <div className="mt-3 flex flex-col items-center gap-3">
                 <UserAvatar
                   fullName={fullName}
@@ -177,6 +201,10 @@ export const ProfileSettingsModal = ({
                   size={84}
                 />
                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{fullName || auth?.username}</p>
+                <div className="w-full rounded-2xl border border-gray-200 bg-white/80 px-3 py-3 text-left dark:border-slate-700 dark:bg-slate-900/80">
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{activePreset.label}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{activePreset.description}</p>
+                </div>
                 <label className="interactive-control inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-600 hover:border-campus-400 hover:text-campus-600 dark:border-slate-600 dark:bg-slate-900 dark:text-gray-300 dark:hover:border-campus-500 dark:hover:text-campus-300">
                   <ImagePlus size={14} />
                   Upload photo
@@ -198,10 +226,14 @@ export const ProfileSettingsModal = ({
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Avatar Style</label>
-                <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Avatar Model</label>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Generated avatars keep a stable identity but give you a stronger visual model than plain color initials.
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {AVATAR_PRESETS.map((preset) => {
                     const selected = avatarType === "preset" && avatarPreset === preset.id;
+                    const Icon = avatarModelIcons[preset.id] || UserRound;
                     return (
                       <button
                         key={preset.id}
@@ -217,7 +249,22 @@ export const ProfileSettingsModal = ({
                         }`}
                         title={preset.label}
                       >
-                        <span className={`mx-auto block h-7 w-7 rounded-lg bg-gradient-to-br ${preset.classes}`} />
+                        <div className="flex items-center gap-3 text-left">
+                          <UserAvatar
+                            fullName={fullName || auth?.fullName}
+                            username={auth?.username}
+                            avatarType="preset"
+                            avatarPreset={preset.id}
+                            size={46}
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <Icon size={14} className="text-campus-600 dark:text-campus-300" />
+                              <span className="truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{preset.label}</span>
+                            </div>
+                            <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{preset.description}</p>
+                          </div>
+                        </div>
                       </button>
                     );
                   })}
@@ -233,7 +280,7 @@ export const ProfileSettingsModal = ({
                   }}
                   className="interactive-control rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-gray-300 dark:hover:bg-slate-700"
                 >
-                  Use preset avatar instead
+                  Use generated avatar instead
                 </button>
               )}
             </div>

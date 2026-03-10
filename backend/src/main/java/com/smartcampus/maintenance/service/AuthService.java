@@ -1,12 +1,13 @@
 package com.smartcampus.maintenance.service;
 
-import com.smartcampus.maintenance.dto.auth.AuthResponse;
 import com.smartcampus.maintenance.dto.auth.AcceptStaffInviteRequest;
+import com.smartcampus.maintenance.dto.auth.AuthResponse;
+import com.smartcampus.maintenance.dto.auth.CurrentUserResponse;
 import com.smartcampus.maintenance.dto.auth.LoginRequest;
 import com.smartcampus.maintenance.dto.auth.RegisterRequest;
-import com.smartcampus.maintenance.entity.StaffInvite;
 import com.smartcampus.maintenance.entity.EmailVerificationToken;
 import com.smartcampus.maintenance.entity.PasswordResetToken;
+import com.smartcampus.maintenance.entity.StaffInvite;
 import com.smartcampus.maintenance.entity.User;
 import com.smartcampus.maintenance.entity.enums.Role;
 import com.smartcampus.maintenance.exception.BadRequestException;
@@ -18,11 +19,15 @@ import com.smartcampus.maintenance.repository.StaffInviteRepository;
 import com.smartcampus.maintenance.repository.UserRepository;
 import com.smartcampus.maintenance.security.JwtService;
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
@@ -47,6 +52,9 @@ public class AuthService {
     private final PasswordPolicyService passwordPolicyService;
     private final TokenHashService tokenHashService;
     private final EmailService emailService;
+    private final AuthRefreshTokenService authRefreshTokenService;
+    private final RefreshCookieService refreshCookieService;
+    private final AuditEventService auditEventService;
     private final String frontendBaseUrl;
     private final long verificationCodeTtlMinutes;
     private final long resetTokenTtlMinutes;
@@ -68,6 +76,9 @@ public class AuthService {
             PasswordPolicyService passwordPolicyService,
             TokenHashService tokenHashService,
             EmailService emailService,
+            AuthRefreshTokenService authRefreshTokenService,
+            RefreshCookieService refreshCookieService,
+            AuditEventService auditEventService,
             @Value("${app.frontend.base-url:http://localhost:5173}") String frontendBaseUrl,
             @Value("${app.auth.verification-code-ttl-minutes:15}") long verificationCodeTtlMinutes,
             @Value("${app.auth.reset-token-ttl-minutes:60}") long resetTokenTtlMinutes,
@@ -86,6 +97,9 @@ public class AuthService {
         this.passwordPolicyService = passwordPolicyService;
         this.tokenHashService = tokenHashService;
         this.emailService = emailService;
+        this.authRefreshTokenService = authRefreshTokenService;
+        this.refreshCookieService = refreshCookieService;
+        this.auditEventService = auditEventService;
         this.frontendBaseUrl = frontendBaseUrl;
         this.verificationCodeTtlMinutes = verificationCodeTtlMinutes;
         this.resetTokenTtlMinutes = resetTokenTtlMinutes;
@@ -96,25 +110,81 @@ public class AuthService {
         this.secureRandom = new SecureRandom();
     }
 
-    public AuthResponse login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request, RequestMetadata metadata, HttpHeaders responseHeaders) {
         String username = request.username().trim();
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(username, request.password()));
         } catch (AuthenticationException ex) {
+            auditEventService.record(
+                    "auth.login.failed",
+                    null,
+                    "login",
+                    username,
+                    metadata,
+                    Map.of("reason", "invalid_credentials"));
             throw new UnauthorizedException("Invalid credentials");
         }
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
         if (!user.isEmailVerified()) {
+            auditEventService.record(
+                    "auth.login.failed",
+                    user,
+                    "user",
+                    String.valueOf(user.getId()),
+                    metadata,
+                    Map.of("reason", "email_not_verified"));
             throw new UnauthorizedException("Email not verified. Enter your verification code first.");
         }
+
+        AuthRefreshTokenService.IssuedRefreshToken refreshToken = authRefreshTokenService.issue(user, metadata);
+        refreshCookieService.writeRefreshCookie(responseHeaders, refreshToken.rawToken(), durationUntil(refreshToken.expiresAt()));
+        auditEventService.record(
+                "auth.login.success",
+                user,
+                "user",
+                String.valueOf(user.getId()),
+                metadata,
+                Map.of("role", user.getRole().name()));
         return buildAuthResponse(user);
     }
 
+    public AuthResponse refreshSession(String rawRefreshToken, RequestMetadata metadata, HttpHeaders responseHeaders) {
+        User user = authRefreshTokenService.consumeForRefresh(rawRefreshToken, metadata);
+        AuthRefreshTokenService.IssuedRefreshToken rotatedToken = authRefreshTokenService.rotate(rawRefreshToken, user,
+                metadata);
+        refreshCookieService.writeRefreshCookie(responseHeaders, rotatedToken.rawToken(),
+                durationUntil(rotatedToken.expiresAt()));
+        auditEventService.record(
+                "auth.refresh.success",
+                user,
+                "user",
+                String.valueOf(user.getId()),
+                metadata,
+                Map.of("role", user.getRole().name()));
+        return buildAuthResponse(user);
+    }
+
+    public void logout(String rawRefreshToken, RequestMetadata metadata, HttpHeaders responseHeaders) {
+        authRefreshTokenService.revoke(rawRefreshToken);
+        refreshCookieService.clearRefreshCookie(responseHeaders);
+        auditEventService.record(
+                "auth.logout",
+                null,
+                "refresh_token",
+                null,
+                metadata,
+                Map.of("hadCookie", rawRefreshToken != null && !rawRefreshToken.isBlank()));
+    }
+
+    public CurrentUserResponse currentUser(User user) {
+        return new CurrentUserResponse(user.getUsername(), user.getFullName(), user.getRole().name());
+    }
+
     @Transactional
-    public void registerStudent(RegisterRequest request) {
+    public void registerStudent(RegisterRequest request, RequestMetadata metadata) {
         String username = request.username().trim();
         String email = request.email().trim().toLowerCase();
         String fullName = request.fullName().trim();
@@ -137,10 +207,17 @@ public class AuthService {
         user.setEmailVerified(false);
         User saved = userRepository.save(user);
         issueEmailVerificationCode(saved);
+        auditEventService.record(
+                "auth.registered",
+                saved,
+                "user",
+                String.valueOf(saved.getId()),
+                metadata,
+                Map.of("email", saved.getEmail()));
     }
 
     @Transactional
-    public void verifyEmail(String email, String code) {
+    public void verifyEmail(String email, String code, RequestMetadata metadata) {
         String normalizedEmail = email.trim().toLowerCase();
         String normalizedCode = code.trim();
         User user = userRepository.findByEmail(normalizedEmail)
@@ -169,6 +246,13 @@ public class AuthService {
             verificationTokenRepository.save(token);
 
             if (attempts >= verificationCodeMaxAttempts) {
+                auditEventService.record(
+                        "auth.verify_email.locked",
+                        user,
+                        "user",
+                        String.valueOf(user.getId()),
+                        metadata,
+                        Map.of("email", normalizedEmail));
                 throw new BadRequestException("Too many invalid attempts. Request a new code.");
             }
             throw new BadRequestException("Invalid verification code.");
@@ -181,16 +265,30 @@ public class AuthService {
         verificationTokenRepository.save(token);
 
         emailService.sendWelcomeEmail(user.getFullName(), user.getEmail(), buildLoginUrl());
+        auditEventService.record(
+                "auth.verify_email.success",
+                user,
+                "user",
+                String.valueOf(user.getId()),
+                metadata,
+                Map.of("email", normalizedEmail));
     }
 
     @Transactional
-    public void resendVerificationCode(String email) {
+    public void resendVerificationCode(String email, RequestMetadata metadata) {
         long startedAtNs = System.nanoTime();
         try {
             String normalizedEmail = email.trim().toLowerCase();
             User user = userRepository.findByEmail(normalizedEmail).orElse(null);
             if (user == null) {
                 log.info("Verification resend requested for unknown email: {}", normalizedEmail);
+                auditEventService.record(
+                        "auth.verify_email.resend.unknown",
+                        null,
+                        "email",
+                        normalizedEmail,
+                        metadata,
+                        Map.of());
                 return;
             }
             if (user.isEmailVerified()) {
@@ -205,21 +303,34 @@ public class AuthService {
                 return;
             }
             issueEmailVerificationCode(user);
+            auditEventService.record(
+                    "auth.verify_email.resend",
+                    user,
+                    "user",
+                    String.valueOf(user.getId()),
+                    metadata,
+                    Map.of("email", normalizedEmail));
         } finally {
             enforceMinimumPublicDelay(startedAtNs);
         }
     }
 
     @Transactional
-    public void forgotPassword(String email) {
+    public void forgotPassword(String email, RequestMetadata metadata) {
         long startedAtNs = System.nanoTime();
         try {
             String normalizedEmail = email.trim().toLowerCase();
             User user = userRepository.findByEmail(normalizedEmail).orElse(null);
 
-            // Always return success to prevent email enumeration
             if (user == null) {
                 log.info("Password reset requested for unknown email: {}", normalizedEmail);
+                auditEventService.record(
+                        "auth.forgot_password.unknown",
+                        null,
+                        "email",
+                        normalizedEmail,
+                        metadata,
+                        Map.of());
                 return;
             }
 
@@ -243,13 +354,20 @@ public class AuthService {
             String resetUrl = buildResetUrl(rawToken);
             emailService.sendPasswordResetEmail(user.getFullName(), user.getEmail(), resetUrl, resetTokenTtlMinutes);
             log.info("Password reset link generated for user '{}'", user.getUsername());
+            auditEventService.record(
+                    "auth.forgot_password.requested",
+                    user,
+                    "user",
+                    String.valueOf(user.getId()),
+                    metadata,
+                    Map.of("email", user.getEmail()));
         } finally {
             enforceMinimumPublicDelay(startedAtNs);
         }
     }
 
     @Transactional
-    public void resetPassword(String token, String newPassword) {
+    public void resetPassword(String token, String newPassword, RequestMetadata metadata) {
         String tokenHash = tokenHashService.hashSha256(token.trim());
         PasswordResetToken resetToken = resetTokenRepository.findByTokenAndUsedFalse(tokenHash)
                 .orElseThrow(() -> new BadRequestException("Invalid or expired reset token."));
@@ -269,13 +387,21 @@ public class AuthService {
 
         resetToken.setUsed(true);
         resetTokenRepository.save(resetToken);
+        authRefreshTokenService.revokeAllForUser(user.getId());
 
         emailService.sendPasswordChangedEmail(user.getFullName(), user.getEmail(), buildLoginUrl());
         log.info("Password successfully reset for user: {}", user.getUsername());
+        auditEventService.record(
+                "auth.password_reset.success",
+                user,
+                "user",
+                String.valueOf(user.getId()),
+                metadata,
+                Map.of());
     }
 
     @Transactional
-    public void acceptStaffInvite(AcceptStaffInviteRequest request) {
+    public void acceptStaffInvite(AcceptStaffInviteRequest request, RequestMetadata metadata) {
         String rawToken = request.token().trim();
         StaffInvite invite = staffInviteRepository
                 .findByTokenHashAndUsedFalse(tokenHashService.hashSha256(rawToken))
@@ -310,6 +436,13 @@ public class AuthService {
         staffInviteRepository.save(invite);
 
         emailService.sendWelcomeEmail(user.getFullName(), user.getEmail(), buildLoginUrl());
+        auditEventService.record(
+                "auth.staff_invite.accepted",
+                user,
+                "user",
+                String.valueOf(user.getId()),
+                metadata,
+                Map.of("email", user.getEmail()));
     }
 
     @Transactional(readOnly = true)
@@ -319,7 +452,8 @@ public class AuthService {
 
     private AuthResponse buildAuthResponse(User user) {
         String token = jwtService.generateToken(user);
-        return new AuthResponse(token, user.getUsername(), user.getFullName(), user.getRole().name());
+        Instant expiresAt = jwtService.resolveExpirationInstant();
+        return new AuthResponse(token, expiresAt.toString(), user.getUsername(), user.getFullName(), user.getRole().name());
     }
 
     private String buildLoginUrl() {
@@ -385,6 +519,11 @@ public class AuthService {
                 && createdAt.isAfter(LocalDateTime.now().minusSeconds(cooldownSeconds));
     }
 
+    private Duration durationUntil(LocalDateTime expiresAt) {
+        long seconds = Duration.between(LocalDateTime.now(), expiresAt).getSeconds();
+        return Duration.ofSeconds(Math.max(0, seconds));
+    }
+
     private void enforceMinimumPublicDelay(long startedAtNs) {
         if (publicRequestMinDelayMs <= 0) {
             return;
@@ -395,8 +534,13 @@ public class AuthService {
             return;
         }
         try {
-            Thread.sleep(remainingMs);
-        } catch (InterruptedException ex) {
+            // Use LockSupport.parkNanos instead of Thread.sleep for a lighter
+            // wait that doesn't hold a monitor.  In a virtual-thread environment
+            // (Java 21+ with --enable-preview) this yields the carrier thread
+            // automatically.  On platform threads the impact is the same as
+            // Thread.sleep but signals intent more clearly.
+            java.util.concurrent.locks.LockSupport.parkNanos(remainingMs * 1_000_000);
+        } catch (Exception ex) {
             Thread.currentThread().interrupt();
         }
     }

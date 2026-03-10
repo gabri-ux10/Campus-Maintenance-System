@@ -1,11 +1,12 @@
 services:
   mysql:
     image: mysql:8.0
+    restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: Campus_Fix
-      MYSQL_USER: campusfix
-      MYSQL_PASSWORD: campusfix123
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-dev-root-password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-Campus_Fix}
+      MYSQL_USER: ${MYSQL_USER:-campusfix}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dev-app-password}
     ports:
       - "3306:3306"
     volumes:
@@ -13,7 +14,7 @@ services:
       - ./database/schemas/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
       - ./database/seed_data.sql:/docker-entrypoint-initdb.d/002_seed_data.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-dev-root-password}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -22,33 +23,53 @@ services:
     build:
       context: ./backend
       dockerfile: ../devops/docker/Dockerfile-backend
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      DB_URL: jdbc:mysql://mysql:3306/Campus_Fix?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
-      DB_USERNAME: campusfix
-      DB_PASSWORD: campusfix123
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-Campus_Fix}?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+      DB_USERNAME: ${MYSQL_USER:-campusfix}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-dev-app-password}
       H2_CONSOLE_ENABLED: "false"
-      APP_SEED_DEMO_DATA: "false"
-      APP_ADMIN_USERNAME: admin
-      APP_ADMIN_EMAIL: admin@campus.local
-      APP_ADMIN_FULL_NAME: Campus Admin
-      APP_ADMIN_PASSWORD: change-this-admin-password
-      FRONTEND_BASE_URL: http://localhost:3000
-      APP_EMAIL_ENABLED: "false"
-      JWT_SECRET: change-this-jwt-secret-to-32-plus-characters
+      APP_SEED_BOOTSTRAP_ADMIN: "true"
+      APP_SEED_ADMIN_SYNC_EXISTING: "true"
+      APP_SEED_DEMO_DATA: "true"
+      APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-admin}
+      APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-admin@campus.local}
+      APP_ADMIN_FULL_NAME: ${APP_ADMIN_FULL_NAME:-Campus Admin}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-password}
+      APP_SEED_DEMO_PASSWORD: ${APP_SEED_DEMO_PASSWORD:-password}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3000}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      APP_EMAIL_ENABLED: ${APP_EMAIL_ENABLED:-false}
+      APP_UPLOAD_DIR: /app/uploads
+      JWT_SECRET: ${JWT_SECRET:-development-only-secret-change-before-prod-12345}
+      APP_SECURITY_RATE_LIMIT_REDIS_ENABLED: "false"
     depends_on:
       mysql:
         condition: service_healthy
+    volumes:
+      - backend_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
 
   frontend:
     build:
       context: ./frontend
       dockerfile: ../devops/docker/Dockerfile-frontend
+    restart: unless-stopped
     ports:
       - "3000:80"
+    environment:
+      FRONTEND_API_UPSTREAM: http://backend:8080
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   mysql_data:
+  backend_uploads:

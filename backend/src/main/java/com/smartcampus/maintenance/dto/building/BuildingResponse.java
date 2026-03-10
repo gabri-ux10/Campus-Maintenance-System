@@ -8,5 +8,6 @@ public record BuildingResponse(
         String code,
         int floors,
         boolean active,
+        int sortOrder,
         LocalDateTime createdAt) {
 }

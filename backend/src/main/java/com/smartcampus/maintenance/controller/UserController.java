@@ -4,18 +4,22 @@ import com.smartcampus.maintenance.dto.user.BroadcastMessageRequest;
 import com.smartcampus.maintenance.dto.user.BroadcastMessageResponse;
 import com.smartcampus.maintenance.dto.user.StaffInviteRequest;
 import com.smartcampus.maintenance.dto.user.StaffInviteResponse;
+import com.smartcampus.maintenance.dto.user.ScheduledBroadcastCreateRequest;
+import com.smartcampus.maintenance.dto.user.ScheduledBroadcastResponse;
 import com.smartcampus.maintenance.dto.user.UserProfileResponse;
 import com.smartcampus.maintenance.dto.user.UserProfileUpdateRequest;
 import com.smartcampus.maintenance.dto.user.UserSummaryResponse;
 import com.smartcampus.maintenance.dto.user.UserWithTicketCountResponse;
 import com.smartcampus.maintenance.entity.User;
 import com.smartcampus.maintenance.service.CurrentUserService;
+import com.smartcampus.maintenance.service.ScheduledBroadcastService;
 import com.smartcampus.maintenance.service.UserService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,10 +31,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserService userService;
+    private final ScheduledBroadcastService scheduledBroadcastService;
     private final CurrentUserService currentUserService;
 
-    public UserController(UserService userService, CurrentUserService currentUserService) {
+    public UserController(
+            UserService userService,
+            ScheduledBroadcastService scheduledBroadcastService,
+            CurrentUserService currentUserService) {
         this.userService = userService;
+        this.scheduledBroadcastService = scheduledBroadcastService;
         this.currentUserService = currentUserService;
     }
 
@@ -69,5 +78,24 @@ public class UserController {
     public BroadcastMessageResponse broadcastMessage(@Valid @RequestBody BroadcastMessageRequest request) {
         User actor = currentUserService.requireCurrentUser();
         return userService.broadcastMessage(actor, request);
+    }
+
+    @PostMapping("/broadcast/scheduled")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ScheduledBroadcastResponse scheduleBroadcast(@Valid @RequestBody ScheduledBroadcastCreateRequest request) {
+        User actor = currentUserService.requireCurrentUser();
+        return scheduledBroadcastService.schedule(actor, request);
+    }
+
+    @GetMapping("/broadcast/scheduled")
+    public List<ScheduledBroadcastResponse> getScheduledBroadcasts() {
+        User actor = currentUserService.requireCurrentUser();
+        return scheduledBroadcastService.list(actor);
+    }
+
+    @PostMapping("/broadcast/scheduled/{id}/cancel")
+    public ScheduledBroadcastResponse cancelScheduledBroadcast(@PathVariable("id") Long id) {
+        User actor = currentUserService.requireCurrentUser();
+        return scheduledBroadcastService.cancel(actor, id);
     }
 }

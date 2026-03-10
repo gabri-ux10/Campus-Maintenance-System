@@ -41,6 +41,14 @@ public class Ticket {
     @Column(nullable = false, length = 120)
     private String building;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "building_id")
+    private Building buildingRecord;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "request_type_id")
+    private RequestType requestType;
+
     @Column(nullable = false, length = 120)
     private String location;
 
@@ -131,6 +139,22 @@ public class Ticket {
 
     public void setBuilding(String building) {
         this.building = building;
+    }
+
+    public Building getBuildingRecord() {
+        return buildingRecord;
+    }
+
+    public void setBuildingRecord(Building buildingRecord) {
+        this.buildingRecord = buildingRecord;
+    }
+
+    public RequestType getRequestType() {
+        return requestType;
+    }
+
+    public void setRequestType(RequestType requestType) {
+        this.requestType = requestType;
     }
 
     public String getLocation() {

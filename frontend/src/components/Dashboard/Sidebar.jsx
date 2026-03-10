@@ -1,18 +1,22 @@
+import { useRef } from "react";
 import { Link } from "react-router-dom";
 import {
-  Activity,
-  CheckCircle2,
-  ClipboardList,
-  Gauge,
+  ChartNoAxesCombined,
+  CircleCheckBig,
+  ContactRound,
+  FileSpreadsheet,
+  HardHat,
   Home,
   LayoutDashboard,
   LogOut,
-  Megaphone,
   PanelLeftClose,
   PanelLeftOpen,
-  UserCog,
-  Users,
-  Wrench,
+  Radar,
+  RadioTower,
+  ScanSearch,
+  Settings2,
+  Ticket,
+  TicketPlus,
   X,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
@@ -20,51 +24,52 @@ import { CampusFixLogo } from "../Common/CampusFixLogo";
 
 const navByRole = {
   STUDENT: [
-    { id: "dashboard", label: "Overview", icon: LayoutDashboard, hint: "Snapshot and insights" },
-    { id: "tickets", label: "My Tickets", icon: ClipboardList, hint: "Open and resolved issues" },
+    { id: "dashboard", label: "Overview", icon: LayoutDashboard, hint: "Request snapshot" },
+    { id: "report", label: "Submit Issue", icon: TicketPlus, hint: "Create a new request" },
+    { id: "tracker", label: "Tracker", icon: Radar, hint: "Follow active requests" },
+    { id: "tickets", label: "Requests", icon: Ticket, hint: "History and ratings" },
   ],
   ADMIN: [
-    { id: "dashboard", label: "Overview", icon: LayoutDashboard, hint: "Operational summary" },
-    { id: "analytics", label: "Analytics", icon: Gauge, hint: "SLA and trends" },
-    { id: "tickets", label: "Ticket Ops", icon: ClipboardList, hint: "Triage and assignments" },
-    { id: "staff", label: "Staff Onboarding", icon: UserCog, hint: "Invite maintenance staff" },
-    { id: "users", label: "Manage Users", icon: Users, hint: "Directory and role audit" },
-    { id: "broadcast", label: "Broadcast", icon: Megaphone, hint: "Message targeted audiences" },
+    { id: "dashboard", label: "Overview", icon: LayoutDashboard, hint: "Campus operations pulse" },
+    { id: "reports", label: "Reports", icon: FileSpreadsheet, hint: "Exports and record packs" },
+    { id: "analytics", label: "Analytics", icon: ChartNoAxesCombined, hint: "SLA and workload trends" },
+    { id: "tickets", label: "Ticket Ops", icon: Ticket, hint: "Triage and assignments" },
+    { id: "configuration", label: "Configuration", icon: Settings2, hint: "Buildings and service catalogs" },
+    { id: "staff", label: "Staff", icon: HardHat, hint: "Invite maintenance crew" },
+    { id: "users", label: "Users", icon: ContactRound, hint: "Directory and access review" },
+    { id: "broadcast", label: "Broadcast", icon: RadioTower, hint: "Messages and schedules" },
   ],
   MAINTENANCE: [
-    { id: "dashboard", label: "Overview", icon: LayoutDashboard, hint: "Workload pulse" },
-    { id: "work-queue", label: "Work Queue", icon: Wrench, hint: "Assigned active tasks" },
-    { id: "performance", label: "Performance", icon: Activity, hint: "Resolution metrics" },
-    { id: "resolved", label: "Resolved", icon: CheckCircle2, hint: "Completed tickets" },
+    { id: "dashboard", label: "Overview", icon: LayoutDashboard, hint: "Shift summary" },
+    { id: "work-queue", label: "Focus Queue", icon: ScanSearch, hint: "Priority active tasks" },
+    { id: "resolved", label: "Completed", icon: CircleCheckBig, hint: "Resolved requests" },
   ],
-};
-
-const roleMeta = {
-  STUDENT: { label: "Student Portal", tone: "bg-campus-500/10 text-campus-600 dark:text-campus-300" },
-  ADMIN: { label: "Admin Command", tone: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
-  MAINTENANCE: { label: "Field Operations", tone: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
 };
 
 const sectionForRole = (role) => navByRole[role?.toUpperCase()] || navByRole.STUDENT;
 
 const NavItem = ({ item, collapsed, active, onSelect }) => {
   const Icon = item.icon;
+
   return (
     <div className="relative group">
       <button
         type="button"
         onClick={() => onSelect(item.id, item.label)}
         title={collapsed ? item.label : undefined}
-        className={`nav-item ${
-          collapsed ? "justify-center px-0 py-2.5" : "justify-between px-3 py-2.5"
-        } ${active ? "nav-item-active" : ""}`}
+        data-dashboard-nav-id={item.id}
+        className={`nav-item overflow-hidden ${collapsed ? "justify-center px-0 py-2.5" : "justify-between px-3.5 py-3"} ${active ? "nav-item-active" : ""}`}
       >
-        <span className="flex items-center gap-3">
-          <Icon size={18} />
+        <span className="flex min-w-0 flex-1 items-center gap-3">
+          <span className="nav-item-icon">
+            <Icon size={17} />
+          </span>
           {!collapsed && (
-            <span className="text-left">
-              <span className="block text-sm font-semibold">{item.label}</span>
-              <span className="block text-[10px] font-medium uppercase tracking-[0.1em] opacity-65">{item.hint}</span>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block truncate text-sm font-semibold">{item.label}</span>
+              <span className="block truncate text-[9px] font-medium uppercase tracking-[0.1em] text-gray-400 dark:text-slate-500">
+                {item.hint}
+              </span>
             </span>
           )}
         </span>
@@ -83,48 +88,63 @@ const NavItem = ({ item, collapsed, active, onSelect }) => {
 
 export const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse, activeSection, onSectionChange }) => {
   const { auth, logout } = useAuth();
+  const touchStartRef = useRef(null);
   const role = auth?.role?.toUpperCase() || "STUDENT";
   const navItems = sectionForRole(role);
-  const meta = roleMeta[role] || roleMeta.STUDENT;
 
   const handleLogout = () => {
     logout();
     window.location.href = "/";
   };
 
+  const handleTouchStart = (event) => {
+    touchStartRef.current = event.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (event) => {
+    if (touchStartRef.current === null) return;
+    const deltaX = event.changedTouches[0].clientX - touchStartRef.current;
+    touchStartRef.current = null;
+    if (deltaX < -60) onClose();
+  };
+
   return (
     <>
-      {isOpen && <div className="fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-sm lg:hidden" onClick={onClose} />}
+      {isOpen && <div className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden" onClick={onClose} />}
 
       <aside
-        className={`dashboard-sidebar glass-sidebar fixed left-0 top-0 z-50 flex h-screen flex-col transition-all duration-300 ease-out lg:translate-x-0 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        } ${collapsed ? "w-sidebar-collapsed" : "w-sidebar"}`}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className={`dashboard-sidebar glass-sidebar fixed left-0 top-0 z-50 flex h-screen w-[min(88vw,var(--sidebar-width))] flex-col transition-all duration-300 ease-out lg:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"
+          } ${collapsed ? "lg:w-sidebar-collapsed" : "lg:w-sidebar"}`}
       >
-        <div className={`flex items-center ${collapsed ? "justify-center px-3" : "justify-between px-5"} py-5`}>
-          <Link to="/" className="no-underline">
-            <CampusFixLogo collapsed={collapsed} roleLabel={meta.label} roleTone={meta.tone} />
-          </Link>
+        <div className={`dashboard-brand-panel ${collapsed ? "px-2.5" : "px-4"} py-4`}>
+          <div className={`flex items-start ${collapsed ? "justify-center" : "justify-between"} gap-3`}>
+            <Link to="/" className="no-underline">
+              <CampusFixLogo collapsed={collapsed} />
+            </Link>
 
-          {!collapsed && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => window.location.assign("/")}
-                className="interactive-control hidden h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-100 hover:text-campus-600 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-400 dark:hover:bg-slate-800 dark:hover:text-campus-300 lg:inline-flex"
-                title="Go to Home"
-              >
-                <Home size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-slate-800 lg:hidden"
-              >
-                <X size={18} />
-              </button>
-            </div>
-          )}
+            {!collapsed && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.location.assign("/")}
+                  className="interactive-control hidden h-9 w-9 items-center justify-center rounded-xl border border-gray-200/80 bg-white/80 text-gray-500 transition hover:text-campus-600 dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-gray-400 dark:hover:text-campus-300 lg:inline-flex"
+                  title="Go to Home"
+                >
+                  <Home size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-slate-800 lg:hidden"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            )}
+          </div>
+
         </div>
 
         {collapsed && (
@@ -135,15 +155,17 @@ export const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse, activeSe
               className="nav-item justify-center px-0 py-2.5"
               title="Home"
             >
-              <Home size={18} />
+              <span className="nav-item-icon">
+                <Home size={17} />
+              </span>
             </button>
           </div>
         )}
 
-        <nav className={`flex-1 space-y-1 overflow-y-auto ${collapsed ? "px-2" : "px-3"} pb-4`}>
+        <nav className={`flex-1 space-y-1.5 overflow-y-auto ${collapsed ? "px-2" : "px-3"} pb-4`}>
           {!collapsed && (
-            <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
-              Command Modules
+            <p className="px-3 text-xs font-semibold text-gray-500 dark:text-slate-400">
+              Workspace
             </p>
           )}
           {navItems.map((item) => (
@@ -157,33 +179,27 @@ export const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse, activeSe
           ))}
         </nav>
 
-        <div className={`border-t border-gray-200/70 dark:border-slate-700/60 ${collapsed ? "p-2" : "p-3"}`}>
-          {!collapsed && (
-            <div className="mb-2 rounded-xl border border-campus-100 bg-campus-50/70 px-3 py-2 dark:border-campus-900/40 dark:bg-campus-900/20">
-              <p className="text-[11px] font-semibold text-campus-700 dark:text-campus-300">System Status</p>
-              <p className="mt-1 flex items-center gap-1.5 text-[11px] text-campus-600 dark:text-campus-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                Live telemetry enabled
-              </p>
-            </div>
-          )}
-
+        <div className={`border-t border-gray-200/70 pt-3 dark:border-slate-700/60 ${collapsed ? "px-2 pb-3" : "px-3 pb-3"}`}>
           <button
             type="button"
             onClick={handleLogout}
             title={collapsed ? "Sign Out" : undefined}
-            className={`nav-item nav-item-danger ${collapsed ? "justify-center px-0 py-2.5" : "justify-start px-3 py-2.5"}`}
+            className={`nav-item nav-item-danger ${collapsed ? "justify-center px-0 py-2.5" : "justify-start px-3.5 py-3"}`}
           >
-            <LogOut size={18} />
+            <span className="nav-item-icon">
+              <LogOut size={17} />
+            </span>
             {!collapsed && <span className="text-sm font-semibold">Sign Out</span>}
           </button>
 
           <button
             type="button"
             onClick={onToggleCollapse}
-            className={`mt-2 hidden nav-item lg:flex ${collapsed ? "justify-center px-0 py-2.5" : "justify-start px-3 py-2.5"}`}
+            className={`mt-2 hidden nav-item lg:flex ${collapsed ? "justify-center px-0 py-2.5" : "justify-start px-3.5 py-3"}`}
           >
-            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            <span className="nav-item-icon">
+              {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+            </span>
             {!collapsed && <span className="text-sm font-semibold">Collapse</span>}
           </button>
         </div>

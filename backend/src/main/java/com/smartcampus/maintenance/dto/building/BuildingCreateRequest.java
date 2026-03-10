@@ -10,5 +10,7 @@ public record BuildingCreateRequest(
 
         @NotBlank(message = "Building code is required") @Size(max = 20, message = "Building code must be at most 20 characters") String code,
 
-        @Min(value = 1, message = "Floors must be at least 1") @Max(value = 100, message = "Floors must be at most 100") int floors) {
+        @Min(value = 1, message = "Floors must be at least 1") @Max(value = 100, message = "Floors must be at most 100") int floors,
+
+        @Min(value = 0, message = "Sort order must be zero or greater") Integer sortOrder) {
 }

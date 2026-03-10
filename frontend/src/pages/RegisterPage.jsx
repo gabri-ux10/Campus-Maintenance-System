@@ -1,291 +1,294 @@
-import { Eye, EyeOff, Wrench, Zap, Shield, UserPlus } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowRight, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
+import { z } from "zod";
+import { AuthPasswordField } from "../components/Auth/AuthPasswordField.jsx";
+import { AuthShell } from "../components/Auth/AuthShell.jsx";
+import { PasswordChecklist } from "../components/Auth/PasswordChecklist.jsx";
+import { TurnstileWidget } from "../components/Auth/TurnstileWidget.jsx";
+import { turnstileEnabled } from "../components/Auth/turnstileConfig.js";
 import { useAuth } from "../hooks/useAuth";
 import { authService } from "../services/authService";
-import { isEmail, minLength } from "../utils/validators";
 import { evaluatePassword } from "../utils/passwordPolicy";
 
-/* ---- Animated Logo ---- */
-const CampusFixLogo = () => (
-  <div className="relative mx-auto flex h-20 w-20 items-center justify-center">
-    <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-campus-300/60 dark:border-campus-500/30 animate-spin-slow" />
-    <div className="absolute inset-1 rounded-xl bg-campus-400/10 dark:bg-campus-500/10 animate-pulse-ring" />
-    <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-campus-500 to-campus-700 shadow-lg shadow-campus-500/30">
-      <Wrench size={28} className="text-white animate-spin-reverse" style={{ animationDuration: "8s" }} />
+const registerSchema = z
+  .object({
+    username: z.string().trim().min(3, "Username must be at least 3 characters."),
+    email: z.string().trim().email("Enter a valid email address."),
+    fullName: z.string().trim().min(2, "Enter your full name."),
+    password: z.string().min(10, "Password must be at least 10 characters."),
+    captchaToken: turnstileEnabled ? z.string().min(1, "Complete the verification challenge.") : z.string().optional(),
+  })
+  .superRefine((values, context) => {
+    const passwordState = evaluatePassword(values.password, values);
+    if (!passwordState.valid) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["password"],
+        message: passwordState.messages[0] || "Password does not meet policy requirements.",
+      });
+    }
+  });
+
+const fieldClass = (hasError) =>
+  `mt-2 w-full rounded-[1.35rem] border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 dark:bg-slate-950 dark:text-white ${
+    hasError
+      ? "border-rose-300 ring-4 ring-rose-100/80 dark:border-rose-500/60 dark:ring-rose-500/10"
+      : "border-slate-200 hover:border-campus-300 focus:border-campus-500 focus:ring-4 focus:ring-campus-100/80 dark:border-slate-700 dark:hover:border-campus-500/70 dark:focus:ring-campus-500/10"
+  }`;
+
+const normalizeRegisterSubmitError = (message) => {
+  const value = (message || "").trim();
+  if (!value) {
+    return "Unable to create your account.";
+  }
+  if (value.toLowerCase() === "internal server error") {
+    return "We couldn't create your account right now. Please try again in a moment. If the problem continues, contact support.";
+  }
+  return value;
+};
+
+const registerSteps = [
+  {
+    id: "details",
+    label: "Account details",
+    description: "Choose your username and email.",
+    state: "current",
+  },
+  {
+    id: "password",
+    label: "Secure password",
+    description: "Create a strong sign-in password.",
+    state: "upcoming",
+  },
+  {
+    id: "verify",
+    label: "Verify email",
+    description: "Confirm the code we send next.",
+    state: "upcoming",
+  },
+];
+
+const registerHeaderAddon = (
+  <div className="rounded-[1.2rem] border border-slate-200/75 bg-white/70 px-4 py-3 text-left shadow-sm dark:border-slate-800 dark:bg-slate-950/52">
+    <div className="flex items-center justify-center gap-2 sm:gap-3">
+      {registerSteps.map((step, index) => (
+        <div key={step.id} className="flex items-center gap-2">
+          <span
+            className={`flex h-2.5 w-2.5 rounded-full ${
+              step.state === "current"
+                ? "bg-campus-500 shadow-[0_0_0_4px_rgba(29,99,237,0.12)]"
+                : "bg-slate-300 dark:bg-slate-700"
+            }`}
+          />
+          {index < registerSteps.length - 1 ? (
+            <span className="hidden h-px w-8 bg-slate-300 dark:bg-slate-700 sm:block" />
+          ) : null}
+        </div>
+      ))}
     </div>
-    <div className="absolute -top-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 shadow-sm">
-      <Zap size={12} className="text-white" />
-    </div>
-    <div className="absolute -bottom-1 -left-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400 shadow-sm">
-      <Shield size={10} className="text-white" />
+    <div className="mt-3 grid gap-2 text-center sm:grid-cols-3">
+      {registerSteps.map((step) => (
+        <div key={step.id}>
+          <p className={`text-xs font-semibold ${step.state === "current" ? "text-campus-700 dark:text-campus-300" : "text-slate-500 dark:text-slate-400"}`}>
+            {step.label}
+          </p>
+          <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+            {step.description}
+          </p>
+        </div>
+      ))}
     </div>
   </div>
 );
 
 export const RegisterPage = () => {
-  const { register } = useAuth();
+  const { register: registerAccount } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    username: "",
-    email: "",
-    fullName: "",
-    password: "",
-    confirmPassword: "",
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const [usernameSuggestions, setUsernameSuggestions] = useState([]);
 
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    getValues,
+    control,
+    formState: { errors, isSubmitting, touchedFields, submitCount },
+  } = useForm({
+    resolver: zodResolver(registerSchema),
+      defaultValues: {
+      username: "",
+      email: "",
+      fullName: "",
+      password: "",
+      captchaToken: "",
+    },
+  });
+
+  const passwordValue = useWatch({ control, name: "password" });
+  const usernameValue = useWatch({ control, name: "username" });
+  const emailValue = useWatch({ control, name: "email" });
+  const fullNameValue = useWatch({ control, name: "fullName" });
+
   const passwordState = useMemo(
-    () => evaluatePassword(form.password, { username: form.username, email: form.email, fullName: form.fullName }),
-    [form.password, form.username, form.email, form.fullName]
+    () => evaluatePassword(passwordValue, { username: usernameValue, email: emailValue, fullName: fullNameValue }),
+    [emailValue, fullNameValue, passwordValue, usernameValue]
   );
 
-  const validate = () => {
-    if (!minLength(form.username, 3)) return "Username must be at least 3 characters.";
-    if (!isEmail(form.email)) return "Please enter a valid email.";
-    if (!form.fullName.trim()) return "Full name is required.";
-    if (!passwordState.valid) return passwordState.messages[0] || "Password does not meet policy.";
-    if (form.password !== form.confirmPassword) return "Passwords do not match.";
-    return "";
-  };
+  const showChecklist = passwordValue.length > 0;
+  const emphasizeChecklist = showChecklist && (Boolean(touchedFields.password) || submitCount > 0);
 
-  const fetchUsernameSuggestions = async () => {
-    if (!minLength(form.username, 3)) {
+  const fetchSuggestions = async () => {
+    const { username, fullName } = getValues();
+    if (!username?.trim() || username.trim().length < 3) {
       setUsernameSuggestions([]);
       return;
     }
     try {
-      const suggestions = await authService.getUsernameSuggestions(form.username, form.fullName);
+      const suggestions = await authService.getUsernameSuggestions(username.trim(), fullName?.trim() || "");
       setUsernameSuggestions(suggestions);
     } catch {
       setUsernameSuggestions([]);
     }
   };
 
-  const submit = async (event) => {
-    event.preventDefault();
-    const validationError = validate();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    setLoading(true);
-    setError("");
+  const onSubmit = async (values) => {
+    setSubmitError("");
     try {
-      await register({
-        username: form.username,
-        email: form.email,
-        fullName: form.fullName,
-        password: form.password,
+      await registerAccount({
+        username: values.username.trim(),
+        email: values.email.trim(),
+        fullName: values.fullName.trim(),
+        password: values.password,
+        captchaToken: values.captchaToken || "",
       });
-      navigate(`/verify-email?email=${encodeURIComponent(form.email.trim().toLowerCase())}`, { replace: true });
-    } catch (err) {
-      setError(err.message);
-      if ((err.message || "").toLowerCase().includes("username")) {
-        await fetchUsernameSuggestions();
+      navigate(`/verify-email?email=${encodeURIComponent(values.email.trim().toLowerCase())}`, { replace: true });
+    } catch (error) {
+      setSubmitError(normalizeRegisterSubmitError(error.message));
+      if ((error.message || "").toLowerCase().includes("username")) {
+        await fetchSuggestions();
       }
-    } finally {
-      setLoading(false);
+      setValue("captchaToken", "");
     }
   };
 
-  const inputClass =
-    "mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-campus-500 dark:focus:ring-campus-900/30";
-
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-campus-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-campus-950" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,_rgba(59,130,246,0.15),_transparent_50%),radial-gradient(circle_at_80%_70%,_rgba(99,102,241,0.1),_transparent_50%)]" />
-      <div className="absolute top-20 left-10 h-72 w-72 rounded-full bg-campus-400/10 blur-3xl" />
-      <div className="absolute bottom-20 right-10 h-64 w-64 rounded-full bg-indigo-400/10 blur-3xl" />
-
-      <div className="relative z-10 flex flex-1 items-center justify-center px-4 py-12">
-
-        <form
-          onSubmit={submit}
-          className="relative z-10 w-full max-w-lg animate-soft-rise rounded-3xl border border-white/60 bg-white/90 p-8 shadow-panel backdrop-blur-xl dark:border-slate-700/60 dark:bg-slate-900/85"
-        >
-          {/* Logo + Branding */}
-          <CampusFixLogo />
-          <h1 className="mt-5 text-center text-2xl font-bold text-gray-900 dark:text-white">
-            Join Campus<span className="text-campus-500">Fix</span>
-          </h1>
-          <p className="mt-1.5 text-center text-sm text-gray-500 dark:text-gray-400">
-            Create your student account to report campus issues
-          </p>
-
-          {/* Username + Email row */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-700 dark:text-gray-300">Username</label>
-              <input
-                value={form.username}
-                onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
-                onBlur={fetchUsernameSuggestions}
-                className={inputClass}
-                placeholder="Enter username"
-                autoComplete="username"
-                autoCapitalize="off"
-                spellCheck={false}
-                required
-              />
-              {usernameSuggestions.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {usernameSuggestions.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onClick={() => setForm((prev) => ({ ...prev, username: suggestion }))}
-                      className="rounded-full bg-campus-50 px-3 py-1 text-xs font-semibold text-campus-600 transition hover:bg-campus-100 dark:bg-campus-900/20 dark:text-campus-400 dark:hover:bg-campus-900/30"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-700 dark:text-gray-300">Email</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
-                className={inputClass}
-                placeholder="Enter email"
-                autoComplete="email"
-                required
-              />
-            </div>
-          </div>
-
-          {/* Full Name */}
-          <div className="mt-4">
-            <label className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-700 dark:text-gray-300">Full Name</label>
+    <AuthShell
+      sectionLabel="Step 1 of 3"
+      heading="Create your account"
+      description="Start with your sign-in details. You will verify your email before your first login."
+      headerAddon={registerHeaderAddon}
+      heroBrand
+      documentTitle="Create account"
+      footer={(
+        <div className="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between">
+          <p>Already have an account?</p>
+          <Link to="/login" className="font-semibold text-campus-700 no-underline hover:text-campus-800 dark:text-campus-300 dark:hover:text-campus-200">
+            Sign in
+          </Link>
+        </div>
+      )}
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Username</span>
             <input
-              value={form.fullName}
-              onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
-              className={inputClass}
-              placeholder="Enter full name"
-              autoComplete="name"
-              required
+              {...register("username")}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="Choose a username"
+              onBlur={fetchSuggestions}
+              className={fieldClass(Boolean(errors.username))}
             />
-          </div>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">You will use this username to sign in.</p>
+            {errors.username ? <p className="mt-2 text-sm font-medium text-rose-600 dark:text-rose-300">{errors.username.message}</p> : null}
+          </label>
 
-          {/* Password row */}
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-700 dark:text-gray-300">Password</label>
-              <div className="mt-1.5 flex rounded-xl border border-gray-200 bg-white transition-all duration-200 focus-within:border-campus-400 focus-within:ring-2 focus-within:ring-campus-100 dark:border-slate-700 dark:bg-slate-800 dark:focus-within:border-campus-500 dark:focus-within:ring-campus-900/30">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={form.password}
-                  onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
-                  className="w-full rounded-l-xl bg-transparent px-4 py-2.5 text-sm outline-none dark:text-white"
-                  placeholder="Enter password"
-                  autoComplete="new-password"
-                  required
-                />
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Email</span>
+            <input
+              {...register("email")}
+              type="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="you@example.com"
+              className={fieldClass(Boolean(errors.email))}
+            />
+            {errors.email ? <p className="mt-2 text-sm font-medium text-rose-600 dark:text-rose-300">{errors.email.message}</p> : null}
+          </label>
+        </div>
+
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Full name</span>
+          <input
+            {...register("fullName")}
+            autoComplete="name"
+            placeholder="Enter your full name"
+            className={fieldClass(Boolean(errors.fullName))}
+          />
+          {errors.fullName ? <p className="mt-2 text-sm font-medium text-rose-600 dark:text-rose-300">{errors.fullName.message}</p> : null}
+        </label>
+
+        {usernameSuggestions.length > 0 ? (
+          <div className="rounded-[1.35rem] border border-campus-100 bg-campus-50 px-4 py-3 dark:border-campus-500/20 dark:bg-campus-500/10">
+            <p className="text-sm font-semibold text-campus-800 dark:text-campus-100">Available usernames</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {usernameSuggestions.map((suggestion) => (
                 <button
+                  key={suggestion}
                   type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="rounded-r-xl px-3 text-gray-400 transition hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                  onClick={() => setValue("username", suggestion, { shouldValidate: true, shouldDirty: true })}
+                  className="rounded-full border border-campus-200 bg-white px-3 py-1.5 text-xs font-semibold text-campus-700 transition hover:border-campus-400 hover:text-campus-800 dark:border-campus-500/40 dark:bg-slate-950 dark:text-campus-200"
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {suggestion}
                 </button>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-700 dark:text-gray-300">Confirm Password</label>
-              <input
-                type="password"
-                value={form.confirmPassword}
-                onChange={(e) => setForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                className={inputClass}
-                placeholder="Confirm password"
-                autoComplete="new-password"
-                required
-              />
+              ))}
             </div>
           </div>
+        ) : null}
 
-          {form.password && (
-            <div className="mt-3">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800">
-                <div
-                  className={`h-full transition-all duration-200 ${
-                    passwordState.level === "high"
-                      ? "w-full bg-emerald-500"
-                      : passwordState.level === "medium"
-                      ? "w-2/3 bg-orange-500"
-                      : "w-1/3 bg-red-500"
-                  }`}
-                />
-              </div>
-              <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                Password strength:{" "}
-                <span
-                  className={
-                    passwordState.level === "high"
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : passwordState.level === "medium"
-                      ? "text-orange-600 dark:text-orange-400"
-                      : "text-red-600 dark:text-red-400"
-                  }
-                >
-                  {passwordState.level.toUpperCase()}
-                </span>
-              </p>
-              {!passwordState.valid && (
-                <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">{passwordState.messages[0]}</p>
-              )}
-            </div>
-          )}
+        <AuthPasswordField
+          label="Password"
+          error={errors.password?.message}
+          registration={register("password")}
+          autoComplete="new-password"
+          placeholder="Create a password"
+        />
 
-          {/* Error */}
-          {error && (
-            <p className="mt-4 rounded-xl bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 dark:bg-red-900/20 dark:text-red-300">
-              {error}
-            </p>
-          )}
+        <PasswordChecklist
+          passwordState={passwordState}
+          show={showChecklist}
+          emphasizeInvalid={emphasizeChecklist}
+        />
 
-          {/* Submit */}
-          <button
-            disabled={loading}
-            type="submit"
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-campus-500 to-campus-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-campus-500/25 transition-all duration-200 hover:from-campus-600 hover:to-campus-700 hover:shadow-campus-500/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {loading ? (
-              <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Creating account...
-              </>
-            ) : (
-              <>
-                <UserPlus size={16} />
-                Create Account
-              </>
-            )}
-          </button>
+        <div>
+          <p className="mb-3 text-sm font-medium text-slate-700 dark:text-slate-200">Verification</p>
+          <TurnstileWidget onVerify={(token) => setValue("captchaToken", token || "", { shouldValidate: true })} />
+          {errors.captchaToken ? <p className="mt-2 text-sm font-medium text-rose-600 dark:text-rose-300">{errors.captchaToken.message}</p> : null}
+        </div>
 
-          {/* Login link */}
-          <p className="mt-5 text-center text-sm text-gray-700 dark:text-gray-300">
-            Already have an account?{" "}
-            <Link to="/login" className="font-semibold text-campus-500 transition hover:text-campus-600 hover:underline">
-              Sign in
-            </Link>
-          </p>
+        {submitError ? (
+          <div className="rounded-[1.35rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+            {submitError}
+          </div>
+        ) : null}
 
-        </form>
-      </div>
-
-      {/* Footer */}
-      <p className="relative z-10 pb-6 text-center text-[11px] font-medium tracking-wide text-gray-600 dark:text-gray-500">
-        © {new Date().getFullYear()} CampusFix Systems
-      </p>
-    </div>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-[1.35rem] bg-[linear-gradient(135deg,#102033,#1d63ed)] px-4 py-3.5 text-sm font-semibold text-white shadow-[0_20px_40px_-24px_rgba(16,32,51,0.55)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          <UserPlus size={16} />
+          {isSubmitting ? "Creating account..." : "Create account"}
+          <ArrowRight size={16} />
+        </button>
+      </form>
+    </AuthShell>
   );
 };

@@ -15,8 +15,13 @@ import {
   Zap,
 } from "lucide-react";
 import { UserAvatar } from "../Common/UserAvatar.jsx";
-import { CATEGORIES, URGENCY_LEVELS } from "../../utils/constants";
+import { URGENCY_LEVELS } from "../../utils/constants";
 import { titleCase } from "../../utils/helpers";
+import {
+  getTicketRequestTypeLabel,
+  getTicketServiceDomainKey,
+  getTicketServiceDomainLabel,
+} from "../../utils/ticketPresentation";
 
 const KANBAN_COLUMNS = ["SUBMITTED", "APPROVED", "ASSIGNED", "IN_PROGRESS", "RESOLVED"];
 
@@ -111,10 +116,11 @@ const SAMPLE_TICKETS = [
   },
 ];
 
-const DEFAULT_FILTERS = { status: "", category: "", urgency: "", search: "" };
+const DEFAULT_FILTERS = { status: "", serviceDomainKey: "", urgency: "", search: "" };
 
 export const TicketManagementKanbanBoard = ({
   tickets = SAMPLE_TICKETS,
+  serviceDomains = [],
   view,
   onViewChange,
   onApproveTicket,
@@ -129,19 +135,37 @@ export const TicketManagementKanbanBoard = ({
     onViewChange?.(nextView);
   };
 
+  const availableServiceDomains = useMemo(() => {
+    if (serviceDomains.length > 0) {
+      return serviceDomains;
+    }
+    return Array.from(
+      new Map(
+        tickets.map((ticket) => [
+          getTicketServiceDomainKey(ticket),
+          {
+            key: getTicketServiceDomainKey(ticket),
+            label: getTicketServiceDomainLabel(ticket),
+          },
+        ])
+      ).values()
+    );
+  }, [serviceDomains, tickets]);
+
   const filteredTickets = useMemo(() => {
     const query = filters.search.trim().toLowerCase();
     return tickets.filter((ticket) => {
       if (!KANBAN_COLUMNS.includes(ticket.status)) return false;
       if (filters.status && ticket.status !== filters.status) return false;
-      if (filters.category && ticket.category !== filters.category) return false;
+      if (filters.serviceDomainKey && getTicketServiceDomainKey(ticket) !== filters.serviceDomainKey) return false;
       if (filters.urgency && ticket.urgency !== filters.urgency) return false;
       if (!query) return true;
 
       const searchable = [
         `T-${ticket.id}`,
         ticket.title,
-        ticket.category,
+        getTicketServiceDomainLabel(ticket),
+        getTicketRequestTypeLabel(ticket),
         ticket.urgency,
         ticket.assignee?.fullName,
         ticket.assignee?.username,
@@ -152,7 +176,7 @@ export const TicketManagementKanbanBoard = ({
 
       return searchable.includes(query);
     });
-  }, [filters.category, filters.search, filters.status, filters.urgency, tickets]);
+  }, [filters.search, filters.serviceDomainKey, filters.status, filters.urgency, tickets]);
 
   const groupedTickets = useMemo(
     () =>
@@ -219,16 +243,16 @@ export const TicketManagementKanbanBoard = ({
         </label>
 
         <label className="space-y-1">
-          <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Category</span>
+          <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Service Domain</span>
           <select
-            value={filters.category}
-            onChange={(event) => setFilters((prev) => ({ ...prev, category: event.target.value }))}
+            value={filters.serviceDomainKey}
+            onChange={(event) => setFilters((prev) => ({ ...prev, serviceDomainKey: event.target.value }))}
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-indigo-900/40"
           >
-            <option value="">All Categories</option>
-            {CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {titleCase(category)}
+            <option value="">All Domains</option>
+            {availableServiceDomains.map((serviceDomain) => (
+              <option key={serviceDomain.key} value={serviceDomain.key}>
+                {serviceDomain.label}
               </option>
             ))}
           </select>
@@ -295,7 +319,8 @@ export const TicketManagementKanbanBoard = ({
                 )}
 
                 {groupedTickets[status].map((ticket) => {
-                  const CategoryIcon = CATEGORY_ICONS[ticket.category] || Wrench;
+                  const serviceDomainKey = getTicketServiceDomainKey(ticket);
+                  const CategoryIcon = CATEGORY_ICONS[serviceDomainKey] || Wrench;
                   const showUrgency = ticket.urgency === "HIGH" || ticket.urgency === "CRITICAL";
                   const assigneeName = ticket.assignee?.fullName || "Unassigned";
 
@@ -316,7 +341,7 @@ export const TicketManagementKanbanBoard = ({
                       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                         <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 dark:bg-slate-800">
                           <CategoryIcon size={14} />
-                          {titleCase(ticket.category)}
+                          {getTicketRequestTypeLabel(ticket)}
                         </span>
                         {showUrgency && (
                           <span className={`inline-flex rounded-full px-2.5 py-1 font-semibold ${URGENCY_BADGES[ticket.urgency]}`}>
@@ -367,4 +392,3 @@ export const TicketManagementKanbanBoard = ({
     </section>
   );
 };
-

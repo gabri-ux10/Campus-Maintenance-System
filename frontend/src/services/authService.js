@@ -5,6 +5,18 @@ export const authService = {
     const { data } = await apiClient.post("/auth/login", payload);
     return data;
   },
+  async refresh() {
+    const { data } = await apiClient.post("/auth/refresh");
+    return data;
+  },
+  async getCurrentUser() {
+    const { data } = await apiClient.get("/auth/me");
+    return data;
+  },
+  async logout() {
+    const { data } = await apiClient.post("/auth/logout");
+    return data;
+  },
   async register(payload) {
     const { data } = await apiClient.post("/auth/register", payload);
     return data;
@@ -13,12 +25,24 @@ export const authService = {
     const { data } = await apiClient.post("/auth/verify-email", { email, code });
     return data;
   },
-  async resendVerification(email) {
-    const { data } = await apiClient.post("/auth/resend-verification", { email });
+  async resendVerification(payloadOrEmail, captchaToken = "") {
+    const payload = typeof payloadOrEmail === "string"
+      ? { email: payloadOrEmail, captchaToken }
+      : {
+          email: payloadOrEmail?.email || "",
+          captchaToken: payloadOrEmail?.captchaToken || "",
+        };
+    const { data } = await apiClient.post("/auth/resend-verification", payload);
     return data;
   },
-  async forgotPassword(email) {
-    const { data } = await apiClient.post("/auth/forgot-password", { email });
+  async forgotPassword(payloadOrEmail, captchaToken = "") {
+    const payload = typeof payloadOrEmail === "string"
+      ? { email: payloadOrEmail, captchaToken }
+      : {
+          email: payloadOrEmail?.email || "",
+          captchaToken: payloadOrEmail?.captchaToken || "",
+        };
+    const { data } = await apiClient.post("/auth/forgot-password", payload);
     return data;
   },
   async resetPassword(token, newPassword) {

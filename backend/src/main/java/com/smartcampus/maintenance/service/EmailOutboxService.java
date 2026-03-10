@@ -47,7 +47,12 @@ public class EmailOutboxService {
             return;
         }
         if (!emailEnabled) {
-            log.info("[EMAIL STUB] To: {}, Subject: {}, Body: {}", toEmail, subject, plainText);
+            log.info(
+                    "[EMAIL STUB] To: {}, Subject: {}, PlainTextChars: {}, HtmlIncluded: {}",
+                    toEmail,
+                    subject,
+                    plainText.length(),
+                    StringUtils.hasText(htmlBody));
             return;
         }
         EmailOutbox message = new EmailOutbox();

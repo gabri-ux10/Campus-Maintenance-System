@@ -12,6 +12,7 @@ import com.smartcampus.maintenance.entity.User;
 import com.smartcampus.maintenance.entity.enums.Role;
 import com.smartcampus.maintenance.entity.enums.TicketStatus;
 import com.smartcampus.maintenance.exception.ForbiddenException;
+import com.smartcampus.maintenance.mapper.TicketMapper;
 import com.smartcampus.maintenance.repository.TicketRepository;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -45,7 +46,7 @@ public class AnalyticsService {
         Map<String, Long> byStatus = tickets.stream()
             .collect(Collectors.groupingBy(ticket -> ticket.getStatus().name(), Collectors.counting()));
         Map<String, Long> byCategory = tickets.stream()
-            .collect(Collectors.groupingBy(ticket -> ticket.getCategory().name(), Collectors.counting()));
+            .collect(Collectors.groupingBy(TicketMapper::resolveServiceDomainKey, Collectors.counting()));
         Map<String, Long> byUrgency = tickets.stream()
             .collect(Collectors.groupingBy(ticket -> ticket.getUrgency().name(), Collectors.counting()));
 
@@ -62,7 +63,7 @@ public class AnalyticsService {
 
         double overall = averageHours(resolvedTickets);
         List<CategoryResolutionTimeResponse> byCategory = resolvedTickets.stream()
-            .collect(Collectors.groupingBy(ticket -> ticket.getCategory().name()))
+            .collect(Collectors.groupingBy(TicketMapper::resolveServiceDomainKey))
             .entrySet()
             .stream()
             .map(entry -> new CategoryResolutionTimeResponse(
@@ -79,9 +80,13 @@ public class AnalyticsService {
     @Transactional(readOnly = true)
     public List<TopBuildingResponse> getTopBuildings(User actor) {
         requireAdmin(actor);
-        return ticketRepository.countByBuilding().stream()
+        return ticketRepository.findAll().stream()
+            .collect(Collectors.groupingBy(this::resolveBuildingName, Collectors.counting()))
+            .entrySet()
+            .stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
             .limit(10)
-            .map(row -> new TopBuildingResponse((String) row[0], (Long) row[1]))
+            .map(entry -> new TopBuildingResponse(entry.getKey(), entry.getValue()))
             .toList();
     }
 
@@ -153,5 +158,12 @@ public class AnalyticsService {
         if (actor.getRole() != Role.ADMIN) {
             throw new ForbiddenException("ADMIN role is required");
         }
+    }
+
+    private String resolveBuildingName(Ticket ticket) {
+        if (ticket.getBuildingRecord() != null) {
+            return ticket.getBuildingRecord().getName();
+        }
+        return ticket.getBuilding();
     }
 }

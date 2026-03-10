@@ -28,4 +28,16 @@ export const userService = {
     const { data } = await apiClient.post("/users/broadcast", payload);
     return data;
   },
+  async scheduleBroadcast(payload) {
+    const { data } = await apiClient.post("/users/broadcast/scheduled", payload);
+    return data;
+  },
+  async getScheduledBroadcasts() {
+    const { data } = await apiClient.get("/users/broadcast/scheduled");
+    return data;
+  },
+  async cancelScheduledBroadcast(id) {
+    const { data } = await apiClient.post(`/users/broadcast/scheduled/${id}/cancel`);
+    return data;
+  },
 };

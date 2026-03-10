@@ -2,6 +2,8 @@ package com.smartcampus.maintenance.dto.support;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 public record SupportContactRequest(
@@ -14,9 +16,9 @@ public record SupportContactRequest(
     @Size(max = 160, message = "Email must be at most 160 characters")
     String email,
 
-    @NotBlank(message = "Category is required")
-    @Size(max = 80, message = "Category must be at most 80 characters")
-    String category,
+    @NotNull(message = "Support category is required")
+    @Positive(message = "Support category is required")
+    Long supportCategoryId,
 
     @NotBlank(message = "Subject is required")
     @Size(max = 180, message = "Subject must be at most 180 characters")
@@ -24,6 +26,9 @@ public record SupportContactRequest(
 
     @NotBlank(message = "Message is required")
     @Size(min = 20, max = 5000, message = "Message must be between 20 and 5000 characters")
-    String message
+    String message,
+
+    @Size(max = 2048, message = "Captcha token is too long")
+    String captchaToken
 ) {
 }

@@ -7,18 +7,48 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "audit:prod": "npm audit --omit=dev",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@dicebear/adventurer-neutral": "^9.4.0",
+    "@dicebear/avataaars-neutral": "^9.4.0",
+    "@dicebear/bottts-neutral": "^9.4.0",
+    "@dicebear/core": "^9.4.0",
+    "@dicebear/identicon": "^9.4.0",
+    "@dicebear/lorelei-neutral": "^9.4.0",
+    "@dicebear/pixel-art-neutral": "^9.4.0",
+    "@dicebear/shapes": "^9.4.0",
+    "@fontsource/outfit": "^5.2.8",
+    "@fontsource/plus-jakarta-sans": "^5.2.8",
+    "@hookform/resolvers": "^5.2.2",
+    "@microsoft/fetch-event-source": "^2.0.1",
+    "@paper-design/shaders-react": "^0.0.71",
+    "@playwright/test": "^1.58.2",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@tanstack/react-query": "^5.90.21",
     "axios": "^1.13.5",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "framer-motion": "^12.34.3",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.575.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-hook-form": "^7.71.2",
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.13.1",
-    "recharts": "^3.2.1"
+    "recharts": "^3.2.1",
+    "usehooks-ts": "^3.1.1",
+    "zod": "^4.3.6"
+  },
+  "overrides": {
+    "dompurify": "^3.3.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.3",
@@ -32,6 +62,7 @@
     "globals": "^17.3.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3",
     "vite": "^7.3.1"
   }
 }

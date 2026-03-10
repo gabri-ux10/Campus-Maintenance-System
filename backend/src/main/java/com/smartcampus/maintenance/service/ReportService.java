@@ -4,6 +4,7 @@ import com.smartcampus.maintenance.entity.Ticket;
 import com.smartcampus.maintenance.entity.User;
 import com.smartcampus.maintenance.entity.enums.Role;
 import com.smartcampus.maintenance.exception.ForbiddenException;
+import com.smartcampus.maintenance.mapper.TicketMapper;
 import com.smartcampus.maintenance.repository.TicketRepository;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStreamWriter;
@@ -39,8 +40,8 @@ public class ReportService {
             writer.println(String.join(",",
                     String.valueOf(t.getId()),
                     escape(t.getTitle()),
-                    t.getCategory().name(),
-                    escape(t.getBuilding()),
+                    TicketMapper.resolveServiceDomainKey(t),
+                    escape(resolveBuildingName(t)),
                     escape(t.getLocation()),
                     t.getUrgency().name(),
                     t.getStatus().name(),
@@ -67,5 +68,12 @@ public class ReportService {
         if (actor.getRole() != Role.ADMIN) {
             throw new ForbiddenException("ADMIN role is required");
         }
+    }
+
+    private String resolveBuildingName(Ticket ticket) {
+        if (ticket.getBuildingRecord() != null) {
+            return ticket.getBuildingRecord().getName();
+        }
+        return ticket.getBuilding();
     }
 }
