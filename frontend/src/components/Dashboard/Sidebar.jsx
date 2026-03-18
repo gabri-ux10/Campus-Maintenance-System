@@ -58,7 +58,7 @@ const NavItem = ({ item, collapsed, active, onSelect }) => {
         onClick={() => onSelect(item.id, item.label)}
         title={collapsed ? item.label : undefined}
         data-dashboard-nav-id={item.id}
-        className={`nav-item overflow-hidden ${collapsed ? "justify-center px-0 py-2.5" : "justify-between px-3.5 py-3"} ${active ? "nav-item-active" : ""}`}
+        className={`nav-item overflow-hidden ${collapsed ? "justify-center px-0 py-2.5" : "justify-between px-3 py-2.5"} ${active ? "nav-item-active" : ""}`}
       >
         <span className="flex min-w-0 flex-1 items-center gap-3">
           <span className="nav-item-icon">
@@ -115,7 +115,7 @@ export const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse, activeSe
       <aside
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className={`dashboard-sidebar glass-sidebar fixed left-0 top-0 z-50 flex h-screen w-[min(88vw,var(--sidebar-width))] flex-col transition-all duration-300 ease-out lg:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"
+        className={`dashboard-sidebar glass-sidebar fixed left-0 top-0 z-50 flex h-screen w-[min(88vw,var(--sidebar-width))] flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] lg:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"
           } ${collapsed ? "lg:w-sidebar-collapsed" : "lg:w-sidebar"}`}
       >
         <div className={`dashboard-brand-panel ${collapsed ? "px-2.5" : "px-4"} py-4`}>
@@ -162,7 +162,7 @@ export const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse, activeSe
           </div>
         )}
 
-        <nav className={`flex-1 space-y-1.5 overflow-y-auto ${collapsed ? "px-2" : "px-3"} pb-4`}>
+        <nav className={`flex-1 min-h-0 space-y-1.5 overflow-y-auto ${collapsed ? "px-2" : "px-3"} pb-4`}>
           {!collapsed && (
             <p className="px-3 text-xs font-semibold text-gray-500 dark:text-slate-400">
               Workspace
@@ -184,7 +184,7 @@ export const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse, activeSe
             type="button"
             onClick={handleLogout}
             title={collapsed ? "Sign Out" : undefined}
-            className={`nav-item nav-item-danger ${collapsed ? "justify-center px-0 py-2.5" : "justify-start px-3.5 py-3"}`}
+            className={`nav-item nav-item-danger ${collapsed ? "justify-center px-0 py-2.5" : "justify-start px-3 py-2.5"}`}
           >
             <span className="nav-item-icon">
               <LogOut size={17} />
@@ -195,7 +195,7 @@ export const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse, activeSe
           <button
             type="button"
             onClick={onToggleCollapse}
-            className={`mt-2 hidden nav-item lg:flex ${collapsed ? "justify-center px-0 py-2.5" : "justify-start px-3.5 py-3"}`}
+            className={`mt-2 hidden nav-item lg:flex ${collapsed ? "justify-center px-0 py-2.5" : "justify-start px-3 py-2.5"}`}
           >
             <span className="nav-item-icon">
               {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}

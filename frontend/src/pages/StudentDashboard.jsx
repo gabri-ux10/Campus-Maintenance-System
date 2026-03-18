@@ -412,6 +412,10 @@ export const StudentDashboard = () => {
     { key: "createdAt", header: "Submitted", accessor: (row) => formatDate(row.createdAt) },
   ], []);
 
+  useEffect(() => {
+    document.title = "Student Dashboard | CampusFix";
+  }, []);
+
   const submitTicket = async (event) => {
     event.preventDefault();
     if (!buildings.some((building) => String(building.id) === String(form.buildingId))) {
@@ -566,7 +570,7 @@ export const StudentDashboard = () => {
   }, [openComposer]);
 
   return (
-    <div className="dashboard-shell animate-fade-in">
+    <div className="dashboard-shell dashboard-shell-student animate-fade-in">
       <DashboardHero id="dashboard" tone="student">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-5">

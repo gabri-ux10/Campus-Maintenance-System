@@ -2,7 +2,6 @@ import { Building2, Layers3, LifeBuoy, Plus, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { adminConfigService } from "../../services/adminConfigService";
-import { MotionCardSurface } from "../Dashboard/MotionCardSurface.jsx";
 
 const tabs = [
   { id: "buildings", label: "Buildings", icon: Building2 },
@@ -253,13 +252,7 @@ export const AdminConfigurationSection = ({
   };
 
   return (
-    <MotionCardSurface
-      as="section"
-      cardId="admin-configuration"
-      sectionId="configuration"
-      className="motion-section dashboard-panel interactive-surface"
-      trackSection
-    >
+    <div className="space-y-0">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Configuration</h3>
@@ -398,6 +391,6 @@ export const AdminConfigurationSection = ({
           </div>
         </div>
       )}
-    </MotionCardSurface>
+    </div>
   );
 };

@@ -1,14 +1,12 @@
 import { useMemo, useState } from "react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,7 +15,7 @@ import {
 import { MotionCardSurface } from "../Dashboard/MotionCardSurface.jsx";
 import { titleCase, toHours } from "../../utils/helpers";
 
-const pieColors = ["#0f766e", "#14b8a6", "#0ea5e9", "#f59e0b", "#f97316", "#64748b", "#334155"];
+const barColors = ["#0ea5e9", "#2563eb", "#14b8a6", "#f59e0b", "#f97316", "#64748b", "#334155"];
 const RANGE_CONFIG = {
   Weekly: { days: 14, mode: "day", label: "Last 14 days" },
   Monthly: { days: 30, mode: "week", label: "Last 30 days" },
@@ -128,22 +126,18 @@ export const AnalyticsCharts = ({ tickets = [] }) => {
   const renderStatusChart = (heightClass) => (
     <div className={heightClass}>
       <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={scopedData.statusData}
-            dataKey="value"
-            nameKey="name"
-            innerRadius={55}
-            outerRadius={96}
-            paddingAngle={2}
-          >
-            {scopedData.statusData.map((entry, index) => (
-              <Cell key={entry.name} fill={pieColors[index % pieColors.length]} />
-            ))}
-          </Pie>
+        <BarChart data={scopedData.statusData} layout="vertical" margin={{ left: 18, right: 12 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--dash-border)" />
+          <XAxis type="number" tick={{ fontSize: 11 }} />
+          <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
           <Tooltip contentStyle={{ borderRadius: 16, border: "1px solid rgba(148,163,184,0.15)", boxShadow: "0 18px 40px -28px rgba(15,23,42,0.35)" }} />
           <Legend />
-        </PieChart>
+          <Bar dataKey="value" name="Tickets" radius={[0, 8, 8, 0]}>
+            {scopedData.statusData.map((entry, index) => (
+              <Cell key={entry.name} fill={barColors[index % barColors.length]} />
+            ))}
+          </Bar>
+        </BarChart>
       </ResponsiveContainer>
     </div>
   );
@@ -151,19 +145,20 @@ export const AnalyticsCharts = ({ tickets = [] }) => {
   const renderResolutionChart = (heightClass) => (
     <div className={heightClass}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={scopedData.resolutionTrend}>
+        <AreaChart data={scopedData.resolutionTrend}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--dash-border)" />
           <XAxis dataKey="label" tick={{ fontSize: 11 }} />
           <YAxis tick={{ fontSize: 11 }} />
           <Tooltip contentStyle={{ borderRadius: 16, border: "1px solid rgba(148,163,184,0.15)", boxShadow: "0 18px 40px -28px rgba(15,23,42,0.35)" }} />
-          <Line
+          <Area
             type="monotone"
             dataKey="averageHours"
             stroke="var(--role-accent-strong)"
             strokeWidth={2.4}
-            dot={{ fill: "var(--role-accent)", strokeWidth: 0 }}
+            fill="color-mix(in srgb, var(--role-accent) 22%, transparent)"
+            dot={{ fill: "var(--role-accent)", strokeWidth: 0, r: 3 }}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

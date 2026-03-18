@@ -10,7 +10,6 @@ import {
   Timer,
   TrendingUp,
   Upload,
-  Wrench,
 } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "../components/Common/EmptyState.jsx";
@@ -18,10 +17,9 @@ import { LoadingSpinner } from "../components/Common/LoadingSpinner.jsx";
 import { Modal } from "../components/Common/Modal.jsx";
 import { StatusBadge } from "../components/Common/StatusBadge.jsx";
 import { UrgencyBadge } from "../components/Common/UrgencyBadge.jsx";
-import { UserAvatar } from "../components/Common/UserAvatar.jsx";
 import { SkeletonLoader } from "../components/Common/SkeletonLoader.jsx";
 import { DataTable } from "../components/Common/DataTable.jsx";
-import { DashboardHero, DashboardStatGrid } from "../components/Dashboard/DashboardPrimitives.jsx";
+import { DashboardStatGrid } from "../components/Dashboard/DashboardPrimitives.jsx";
 import { MotionCardSurface } from "../components/Dashboard/MotionCardSurface.jsx";
 import { TicketTimeline } from "../components/tickets/TicketTimeline.jsx";
 import { useAuth } from "../hooks/useAuth";
@@ -33,7 +31,6 @@ import {
 } from "../queries/catalogQueries.js";
 import { ticketService } from "../services/ticketService";
 import { formatDate, toHours } from "../utils/helpers";
-import { loadProfilePreferences } from "../utils/profilePreferences";
 import {
   getTicketBuildingName,
   getTicketLocationSummary,
@@ -41,7 +38,6 @@ import {
   getTicketServiceDomainKey,
   getTicketServiceDomainLabel,
 } from "../utils/ticketPresentation";
-import { scrollToDashboardSection } from "../components/Dashboard/scrollToDashboardSection";
 
 const SLA_TARGETS = { CRITICAL: 4, HIGH: 24, MEDIUM: 72, LOW: 168 };
 const urgencyOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
@@ -228,9 +224,9 @@ export const MaintenanceDashboard = () => {
     || requestTypesQuery.error?.response?.data?.message
     || "";
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const avatarPreferences = useMemo(() => loadProfilePreferences(auth?.username), [auth?.username]);
+  useEffect(() => {
+    document.title = "Maintenance Dashboard | CampusFix";
+  }, []);
 
   const availableRequestTypes = useMemo(() => {
     if (!queueFilters.serviceDomainKey) {
@@ -458,25 +454,17 @@ export const MaintenanceDashboard = () => {
 
   return (
     <div className="dashboard-shell animate-fade-in">
-      <DashboardHero id="dashboard" tone="maintenance">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="space-y-5">
-            <div className="flex items-center gap-4">
-              <div className="dashboard-avatar-wrap">
-                <UserAvatar fullName={auth?.fullName} username={auth?.username} avatarType={avatarPreferences.avatarType} avatarPreset={avatarPreferences.avatarPreset} avatarImage={avatarPreferences.avatarImage} size={48} className="rounded-xl" />
-              </div>
-              <div>
-                <h1 className="dashboard-hero-title">{greeting}, {auth?.fullName || "Staff"}</h1>
-                <p className="dashboard-hero-subtitle">Work the queue with clear SLA visibility, notes, and completion evidence in one operating view.</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => scrollToDashboardSection("work-queue")} className="btn-primary interactive-control"><Wrench size={16} />Open Queue</button>
-            <button type="button" onClick={() => scrollToDashboardSection("resolved")} className="btn-ghost interactive-control">Resolved Log</button>
-          </div>
+      <section id="dashboard" data-dashboard-section="true" className="motion-section dashboard-panel saas-card">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Overview</h1>
+          <span className="pill-badge bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+            {auth?.fullName || "Maintenance"}
+          </span>
         </div>
-      </DashboardHero>
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          Current shift summary for assigned, in-progress, overdue risk, and completed work.
+        </p>
+      </section>
 
       {loading ? <SkeletonLoader variant="stat" count={4} /> : <DashboardStatGrid items={statCards} />}
 

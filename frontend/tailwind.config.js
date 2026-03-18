@@ -65,12 +65,12 @@ export default {
         },
       },
       width: {
-        sidebar: "280px",
-        "sidebar-collapsed": "80px",
+        sidebar: "256px",
+        "sidebar-collapsed": "72px",
       },
       padding: {
-        sidebar: "280px",
-        "sidebar-collapsed": "80px",
+        sidebar: "256px",
+        "sidebar-collapsed": "72px",
       },
       boxShadow: {
         panel: "0 20px 45px -25px rgba(16,32,51,0.28)",

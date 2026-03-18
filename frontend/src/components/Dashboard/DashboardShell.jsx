@@ -40,6 +40,7 @@ export const DashboardShell = ({ children }) => {
   });
   const role = auth?.role?.toUpperCase() || "STUDENT";
   const effectiveCollapsed = collapsed && isDesktop;
+  const roleLabel = role === "ADMIN" ? "Admin" : role === "MAINTENANCE" ? "Maintenance" : "Student";
 
   const toggleCollapse = () => {
     setCollapsed((prev) => {
@@ -138,6 +139,11 @@ export const DashboardShell = ({ children }) => {
     return () => window.removeEventListener("dashboard:sidebar-collapsed", handlePreferenceSync);
   }, []);
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.title = `${roleLabel} Dashboard | CampusFix`;
+  }, [roleLabel, activeSectionLabel]);
+
   return (
     <div
       className={`dashboard-app dashboard-role-${role.toLowerCase()} min-h-screen bg-bg-light dark:bg-bg-dark`}
@@ -161,10 +167,7 @@ export const DashboardShell = ({ children }) => {
           effectiveCollapsed ? "lg:pl-sidebar-collapsed" : "lg:pl-sidebar"
         }`}
       >
-        <TopBar
-          onMenuClick={() => setSidebarOpen(true)}
-          activeSectionLabel={activeSectionLabel}
-        />
+        <TopBar onMenuClick={() => setSidebarOpen(true)} activeSectionLabel={activeSectionLabel} />
 
         <main className="px-4 pb-8 pt-6 sm:px-6 lg:px-8 xl:px-10">
           <div className="mx-auto max-w-[1480px]">{children}</div>

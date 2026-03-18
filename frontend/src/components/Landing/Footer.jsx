@@ -92,10 +92,26 @@ const toPhoneHref = (value) => {
     return normalized ? `tel:${normalized}` : "";
 };
 
-export const QuickLinksSection = ({ config }) => {
+export const QuickLinksSection = ({ config, useAboutLinks = false }) => {
     const [ref, visible] = useScrollReveal(0.12);
     const supportPhoneText = (config.supportPhone && config.supportPhone.trim()) || "+254 747988030";
     const supportPhoneHref = toPhoneHref(supportPhoneText);
+
+    const renderSectionLink = (label, hash) => {
+        if (useAboutLinks) {
+            return (
+                <Link to={`/about-us${hash}`} className="font-semibold text-gray-700 transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300 no-underline">
+                    {label}
+                </Link>
+            );
+        }
+
+        return (
+            <button type="button" onClick={() => scrollToLandingSection(hash)} className="text-left font-semibold text-gray-700 transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300">
+                {label}
+            </button>
+        );
+    };
 
     return (
         <section className="landing-section bg-white pb-6 dark:bg-slate-900 sm:pb-8">
@@ -143,15 +159,24 @@ export const QuickLinksSection = ({ config }) => {
                     <article className="landing-surface-card rounded-2xl border border-gray-200/90 bg-white/90 p-5 dark:border-slate-700 dark:bg-slate-900/85">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">Quick links</p>
                         <div className="mt-3 grid gap-2 text-sm">
-                            <button type="button" onClick={() => scrollToLandingSection("#product")} className="text-left font-semibold text-gray-700 transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300">
-                                Product tour
-                            </button>
-                            <button type="button" onClick={() => scrollToLandingSection("#roles")} className="text-left font-semibold text-gray-700 transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300">
-                                Roles
-                            </button>
-                            <button type="button" onClick={() => scrollToLandingSection("#faq")} className="text-left font-semibold text-gray-700 transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300">
-                                FAQ
-                            </button>
+                            {useAboutLinks ? (
+                                <Link to="/about-us" className="font-semibold text-gray-700 transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300 no-underline">
+                                    Learn more
+                                </Link>
+                            ) : (
+                                <button type="button" onClick={() => scrollToLandingSection("#product")} className="text-left font-semibold text-gray-700 transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300">
+                                    Product tour
+                                </button>
+                            )}
+                            {useAboutLinks ? (
+                                <Link to="/about-us#faq" className="font-semibold text-gray-700 transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300 no-underline">
+                                    FAQ
+                                </Link>
+                            ) : (
+                                <button type="button" onClick={() => scrollToLandingSection("#roles")} className="text-left font-semibold text-gray-700 transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300">
+                                    Roles
+                                </button>
+                            )}
                             <Link to="/contact-support" className="font-semibold text-gray-700 transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300 no-underline">
                                 Contact Support
                             </Link>
@@ -161,12 +186,8 @@ export const QuickLinksSection = ({ config }) => {
                     <article className="landing-surface-card rounded-2xl border border-gray-200/90 bg-white/90 p-5 dark:border-slate-700 dark:bg-slate-900/85">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">Legal</p>
                         <div className="mt-3 grid gap-2.5 text-sm">
-                            <button type="button" onClick={() => scrollToLandingSection("#terms-and-conditions")} className="text-left text-base font-semibold text-gray-900 transition hover:text-campus-600 dark:text-white dark:hover:text-campus-300">
-                                Terms & Conditions
-                            </button>
-                            <button type="button" onClick={() => scrollToLandingSection("#privacy-policy")} className="text-left text-base font-semibold text-gray-900 transition hover:text-campus-600 dark:text-white dark:hover:text-campus-300">
-                                Privacy Policy
-                            </button>
+                            {renderSectionLink("Terms & Conditions", "#terms-and-conditions")}
+                            {renderSectionLink("Privacy Policy", "#privacy-policy")}
                         </div>
                         <div className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-campus-500 to-campus-600 px-3 py-2 text-white shadow-md shadow-campus-500/25">
                             <Globe size={16} className="text-white" />
