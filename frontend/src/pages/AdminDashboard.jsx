@@ -1,16 +1,18 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
-  CircleCheckBig, ScanSearch, Ticket, Workflow,
+  ChevronDown,
+  CircleCheckBig,
+  ScanSearch,
+  Ticket,
+  Workflow,
 } from "lucide-react";
 import { ConfirmDialog } from "../components/Common/ConfirmDialog.jsx";
 import { LoadingSpinner } from "../components/Common/LoadingSpinner.jsx";
 import { Modal } from "../components/Common/Modal.jsx";
 import { StatusBadge } from "../components/Common/StatusBadge.jsx";
 import { UrgencyBadge } from "../components/Common/UrgencyBadge.jsx";
-import { UserAvatar } from "../components/Common/UserAvatar.jsx";
 import { SkeletonLoader } from "../components/Common/SkeletonLoader.jsx";
-import { DashboardHero } from "../components/Dashboard/DashboardPrimitives.jsx";
 import { MotionCardSurface } from "../components/Dashboard/MotionCardSurface.jsx";
 import { TicketTimeline } from "../components/tickets/TicketTimeline.jsx";
 
@@ -42,14 +44,12 @@ import { userService } from "../services/userService";
 import { exportToCSV, exportToPDF } from "../services/exportService";
 import { STATUSES, URGENCY_LEVELS } from "../utils/constants";
 import { formatDate, titleCase } from "../utils/helpers";
-import { loadProfilePreferences } from "../utils/profilePreferences";
 import {
   getTicketBuildingName,
   getTicketLocationSummary,
   getTicketRequestTypeLabel,
   getTicketServiceDomainLabel,
 } from "../utils/ticketPresentation";
-import { scrollToDashboardSection } from "../components/Dashboard/scrollToDashboardSection";
 
 /* ------------------------------------------------------------------ */
 /*  SLA helpers                                                        */
@@ -90,6 +90,7 @@ const buildTicketSearchText = (ticket) => [
 /* ================================================================== */
 export const AdminDashboard = () => {
   const { auth } = useAuth();
+  const [configurationCollapsed, setConfigurationCollapsed] = useState(true);
   const [filters, setFilters] = useState({
     status: "",
     serviceDomainKey: "",
@@ -218,6 +219,13 @@ export const AdminDashboard = () => {
   useEffect(() => { refreshAnalytics(); refreshUsers(); refreshScheduledEvents(); }, []);
   useEffect(() => { refreshTickets(); }, [refreshTickets]);
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      refreshTickets();
+      refreshAnalytics();
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [refreshTickets]);
+  useEffect(() => {
     if (!filters.requestTypeId) {
       return;
     }
@@ -234,7 +242,7 @@ export const AdminDashboard = () => {
   /*  COMPUTED DATA                                                    */
   /* ================================================================ */
   const pendingCount = (summary?.byStatus?.SUBMITTED || 0) + (summary?.byStatus?.APPROVED || 0) + (summary?.byStatus?.ASSIGNED || 0);
-  const inProgressCount = summary?.byStatus?.IN_PROGRESS || 0;
+  const inProgressCount = (summary?.byStatus?.ACCEPTED || 0) + (summary?.byStatus?.IN_PROGRESS || 0);
   const resolvedCount = (summary?.byStatus?.RESOLVED || 0) + (summary?.byStatus?.CLOSED || 0);
 
   const ticketTrends = useMemo(() => {
@@ -465,10 +473,10 @@ export const AdminDashboard = () => {
     }));
   });
 
-  /* ---- greeting ---- */
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
-  const avatarPreferences = useMemo(() => loadProfilePreferences(auth?.username), [auth?.username]);
+  useEffect(() => {
+    document.title = "Admin Dashboard | CampusFix";
+  }, []);
+
   const activeScopeFilters = [
     filters.status,
     filters.serviceDomainKey,
@@ -519,34 +527,63 @@ export const AdminDashboard = () => {
   /* ================================================================ */
   return (
     <div className="dashboard-shell animate-fade-in">
-      <DashboardHero id="dashboard" tone="admin">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="space-y-5">
-            <div className="flex items-center gap-4">
-              <div className="dashboard-avatar-wrap">
-                <UserAvatar
-                  fullName={auth?.fullName}
-                  username={auth?.username}
-                  avatarType={avatarPreferences.avatarType}
-                  avatarPreset={avatarPreferences.avatarPreset}
-                  avatarImage={avatarPreferences.avatarImage}
-                  size={48}
-                  className="rounded-xl"
-                />
-              </div>
-              <div>
-                <h1 className="dashboard-hero-title">{greeting}, {auth?.fullName || "Admin"}</h1>
-                <p className="dashboard-hero-subtitle">Coordinate campus demand, watch SLA pressure, and manage staff, users, and broadcasts from one command layer.</p>
-              </div>
-            </div>
-          </div>
-
-          <button type="button" onClick={() => scrollToDashboardSection("tickets")} className="btn-primary interactive-control">
-            <Ticket size={16} />
-            Open Ticket Ops
-          </button>
+      <section id="dashboard" data-dashboard-section="true" className="motion-section dashboard-panel saas-card">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Overview</h1>
+          <span className="pill-badge bg-campus-50 text-campus-700 dark:bg-campus-900/20 dark:text-campus-300">
+            {auth?.fullName || "Admin"}
+          </span>
         </div>
-      </DashboardHero>
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          Ticket trackers, SLA compliance, building pressure, and crew performance for daily operations.
+        </p>
+      </section>
+
+      {analyticsLoading ? <SkeletonLoader variant="stat" count={4} /> : <AdminStatCards items={statCards} />}
+
+      {!analyticsLoading && (
+        <div className="motion-grid grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-[1.3fr_0.8fr_0.8fr]">
+          <SLAComplianceCard slaOverview={slaOverview} resolution={resolution} />
+          <BuildingsRanking topBuildings={topBuildings} />
+          <CrewPerformance crewPerformance={crewPerformance} resolution={resolution} />
+        </div>
+      )}
+
+      {ticketLoading ? (
+        <SkeletonLoader variant="row" count={5} />
+      ) : (
+        <TicketOperationsTable
+          tickets={ticketOpsData}
+          filters={filters}
+          setFilters={setFilters}
+          maintenanceUsers={maintenanceUsers}
+          onOpenTicket={openTicket}
+          statuses={STATUSES}
+          serviceDomains={serviceDomains}
+          requestTypes={requestTypes}
+          buildings={configBuildings}
+          urgencyLevels={URGENCY_LEVELS}
+          searchValue={tableSearch}
+          onSearchChange={setTableSearch}
+        />
+      )}
+
+      <StaffOnboarding
+        maintenanceUsers={maintenanceUsers}
+        onInviteStaff={handleInviteStaff}
+        onFetchSuggestions={handleFetchSuggestions}
+        latestInvite={latestInvite}
+      />
+
+      {usersLoading ? <SkeletonLoader variant="row" count={5} /> : <UserManagementTable users={users} loading={usersLoading} />}
+
+      <BroadcastCenter
+        onBroadcast={handleBroadcast}
+        onSchedule={handleSchedule}
+        onCancelScheduled={handleCancelScheduled}
+        scheduledEvents={scheduledEvents}
+        scheduledEventsLoading={scheduledEventsLoading}
+      />
 
       <MotionCardSurface
         as="section"
@@ -571,65 +608,37 @@ export const AdminDashboard = () => {
         />
       </MotionCardSurface>
 
-      {analyticsLoading ? <SkeletonLoader variant="stat" count={4} /> : <AdminStatCards items={statCards} />}
-
-      {!analyticsLoading && (
-        <div className="motion-grid grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-[1.3fr_0.8fr_0.8fr]">
-          <SLAComplianceCard slaOverview={slaOverview} resolution={resolution} />
-          <BuildingsRanking topBuildings={topBuildings} />
-          <CrewPerformance crewPerformance={crewPerformance} resolution={resolution} />
-        </div>
-      )}
-
       {!analyticsLoading && <AnalyticsCharts tickets={allTicketsForTrend} />}
 
-      {ticketLoading ? (
-        <SkeletonLoader variant="row" count={5} />
-      ) : (
-        <TicketOperationsTable
-          tickets={ticketOpsData}
-          filters={filters}
-          setFilters={setFilters}
-          maintenanceUsers={maintenanceUsers}
-          onOpenTicket={openTicket}
-          statuses={STATUSES}
-          serviceDomains={serviceDomains}
-          requestTypes={requestTypes}
-          buildings={configBuildings}
-          urgencyLevels={URGENCY_LEVELS}
-          searchValue={tableSearch}
-          onSearchChange={setTableSearch}
-        />
-      )}
+      <section id="configuration" data-dashboard-section="true" className="motion-section dashboard-panel saas-card">
+        <button
+          type="button"
+          onClick={() => setConfigurationCollapsed((current) => !current)}
+          className="interactive-control flex w-full items-center justify-between rounded-xl border border-gray-200/70 bg-white/70 px-4 py-3 text-left dark:border-slate-700/70 dark:bg-slate-900/70"
+        >
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Configuration</h3>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Buildings, request types, and support categories.</p>
+          </div>
+          <ChevronDown size={18} className={`text-gray-500 transition-transform ${configurationCollapsed ? "" : "rotate-180"}`} />
+        </button>
 
-      {configLoading ? (
-        <SkeletonLoader variant="row" count={3} />
-      ) : (
-        <AdminConfigurationSection
-          buildings={configBuildings}
-          serviceDomains={serviceDomains}
-          requestTypes={requestTypes}
-          supportCategories={supportCategories}
-          onRefresh={() => Promise.all([refreshConfiguration(), refreshTickets(), refreshAnalytics()])}
-        />
-      )}
-
-      <StaffOnboarding
-        maintenanceUsers={maintenanceUsers}
-        onInviteStaff={handleInviteStaff}
-        onFetchSuggestions={handleFetchSuggestions}
-        latestInvite={latestInvite}
-      />
-
-      {usersLoading ? <SkeletonLoader variant="row" count={5} /> : <UserManagementTable users={users} loading={usersLoading} />}
-
-      <BroadcastCenter
-        onBroadcast={handleBroadcast}
-        onSchedule={handleSchedule}
-        onCancelScheduled={handleCancelScheduled}
-        scheduledEvents={scheduledEvents}
-        scheduledEventsLoading={scheduledEventsLoading}
-      />
+        {!configurationCollapsed && (
+          <div className="mt-4">
+            {configLoading ? (
+              <SkeletonLoader variant="row" count={3} />
+            ) : (
+              <AdminConfigurationSection
+                buildings={configBuildings}
+                serviceDomains={serviceDomains}
+                requestTypes={requestTypes}
+                supportCategories={supportCategories}
+                onRefresh={() => Promise.all([refreshConfiguration(), refreshTickets(), refreshAnalytics()])}
+              />
+            )}
+          </div>
+        )}
+      </section>
 
       <ReportBuilder
         open={reportOpen}

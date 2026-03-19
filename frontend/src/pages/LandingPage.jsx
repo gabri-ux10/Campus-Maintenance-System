@@ -1,147 +1,46 @@
-import { useEffect, useState } from "react";
-import { publicAnalyticsService } from "../services/publicAnalyticsService";
-
-import { ContactSection } from "../components/Landing/ContactSection";
-import { FAQSection } from "../components/Landing/FAQSection";
-import { FeaturesSection } from "../components/Landing/FeaturesSection";
+import { Link } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
 import { BottomSocialSection, Footer, QuickLinksSection } from "../components/Landing/Footer";
-import { HeroSection } from "../components/Landing/HeroSection";
-import { HowItWorksSection } from "../components/Landing/HowItWorksSection";
-import { LandingProofStrip } from "../components/Landing/LandingProofStrip";
 import { Navbar } from "../components/Landing/Navbar";
-import { PoliciesSection } from "../components/Landing/PoliciesSection";
-import { ScrollTopButton } from "../components/Landing/ScrollTopButton";
-
-const INITIAL_STATS = {
-  totalTickets: null,
-  resolvedTickets: null,
-  openTickets: null,
-  resolvedToday: null,
-  averageResolutionHours: null,
-  resolvedLast7Days: [],
-  lastUpdatedAt: null,
-};
-
-const INITIAL_PUBLIC_CONFIG = {
-  supportHours: "--",
-  supportPhone: "--",
-  supportTimezone: "Local campus time",
-  urgentSlaHours: null,
-  standardSlaHours: null,
-};
-
-const usePublicAnalytics = () => {
-  const [stats, setStats] = useState(INITIAL_STATS);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-
-    let active = true;
-    let timer = null;
-
-    const load = async (force = false) => {
-      if (!force && document.visibilityState === "hidden") return;
-      try {
-        const data = await publicAnalyticsService.getSummary();
-        if (!active) return;
-        setStats({ ...INITIAL_STATS, ...data });
-        setError("");
-      } catch (err) {
-        if (!active) return;
-        setError(err?.response?.data?.message || "Live analytics is currently unavailable.");
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    };
-
-    const startPolling = () => {
-      if (timer !== null) return;
-      timer = window.setInterval(() => {
-        load();
-      }, 20000);
-    };
-
-    const stopPolling = () => {
-      if (timer === null) return;
-      clearInterval(timer);
-      timer = null;
-    };
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        stopPolling();
-        return;
-      }
-      load(true);
-      startPolling();
-    };
-
-    load(true);
-    if (document.visibilityState !== "hidden") {
-      startPolling();
-    }
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
-    return () => {
-      active = false;
-      stopPolling();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, []);
-
-  return { stats, loading, error };
-};
-
-const usePublicLandingConfig = () => {
-  const [config, setConfig] = useState(INITIAL_PUBLIC_CONFIG);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let active = true;
-
-    const load = async () => {
-      try {
-        const data = await publicAnalyticsService.getConfig();
-        if (!active) return;
-        setConfig({ ...INITIAL_PUBLIC_CONFIG, ...data });
-        setError("");
-      } catch (err) {
-        if (!active) return;
-        setError(err?.response?.data?.message || "Support configuration is currently unavailable.");
-      }
-    };
-
-    load();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return { config, error };
-};
 
 export const LandingPage = () => {
-  const { stats, loading, error } = usePublicAnalytics();
-  const { config } = usePublicLandingConfig();
-
   return (
     <div className="landing-canvas min-h-screen bg-white dark:bg-slate-900">
       <Navbar />
-      <HeroSection stats={stats} loading={loading} error={error} />
-      <LandingProofStrip stats={stats} loading={loading} error={error} />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <FAQSection />
-      <ContactSection config={config} />
-      <PoliciesSection />
-      <QuickLinksSection config={config} />
+      <main className="relative flex min-h-[74vh] items-center justify-center px-5 pb-16 pt-36 sm:px-6">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,_rgba(14,165,233,0.14),_transparent_35%),radial-gradient(circle_at_88%_10%,_rgba(16,185,129,0.12),_transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.97),rgba(246,249,252,0.9))] dark:bg-[radial-gradient(circle_at_10%_20%,_rgba(14,165,233,0.2),_transparent_35%),radial-gradient(circle_at_88%_10%,_rgba(16,185,129,0.16),_transparent_32%),linear-gradient(180deg,rgba(2,8,23,0.94),rgba(15,23,42,0.92))]" />
+        <section className="relative z-10 mx-auto max-w-3xl text-center">
+          <h1 className="text-4xl font-extrabold tracking-tight text-gray-950 dark:text-white sm:text-5xl lg:text-6xl">
+            Campus Maintenance System
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-gray-700 dark:text-gray-300 sm:text-lg">
+            Campus Maintenance System is built to help students, maintenance teams, and administrators report issues clearly, track every repair stage, and keep campus facilities running smoothly. It was created to remove delays and confusion in maintenance communication by keeping everything in one place. Click below to get started.
+          </p>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              to="/register"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gray-950 px-6 py-3.5 text-sm font-semibold text-white no-underline shadow-xl shadow-gray-950/15 transition hover:-translate-y-0.5 hover:bg-gray-900 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+            >
+              Get Started
+              <ArrowRight size={16} />
+            </Link>
+            <Link
+              to="/about-us"
+              className="inline-flex items-center gap-2 rounded-2xl border border-gray-300 bg-white/85 px-6 py-3.5 text-sm font-semibold text-gray-700 no-underline shadow-sm transition hover:border-campus-300 hover:text-campus-600 dark:border-slate-700 dark:bg-slate-900/80 dark:text-gray-200 dark:hover:border-campus-500 dark:hover:text-campus-300"
+            >
+              Learn More
+            </Link>
+          </div>
+        </section>
+      </main>
+      <QuickLinksSection
+        config={{
+          supportPhone: "+254 747988030",
+        }}
+        useAboutLinks
+      />
       <BottomSocialSection />
       <Footer />
-      <ScrollTopButton />
     </div>
   );
 };

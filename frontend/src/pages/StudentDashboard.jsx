@@ -74,7 +74,7 @@ const categoryColors = {
   OTHER: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
 
-const STATUS_STEPS = ["SUBMITTED", "APPROVED", "ASSIGNED", "IN_PROGRESS", "RESOLVED"];
+const STATUS_STEPS = ["SUBMITTED", "APPROVED", "ASSIGNED", "ACCEPTED", "IN_PROGRESS", "RESOLVED"];
 
 const createDefaultForm = ({
   serviceDomainKey = "",
@@ -241,7 +241,7 @@ const RecentActivityDetail = ({ tickets }) => (
 
 export const StudentDashboard = () => {
   const { auth } = useAuth();
-  const { tickets, loading, error, refresh } = useTickets(() => ticketService.getMyTickets(), []);
+  const { tickets, loading, error, refresh } = useTickets(() => ticketService.getMyTickets(), [], { pollMs: 10000 });
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(() => createDefaultForm());
   const [imageFile, setImageFile] = useState(null);
@@ -412,6 +412,10 @@ export const StudentDashboard = () => {
     { key: "createdAt", header: "Submitted", accessor: (row) => formatDate(row.createdAt) },
   ], []);
 
+  useEffect(() => {
+    document.title = "Student Dashboard | CampusFix";
+  }, []);
+
   const submitTicket = async (event) => {
     event.preventDefault();
     if (!buildings.some((building) => String(building.id) === String(form.buildingId))) {
@@ -566,7 +570,7 @@ export const StudentDashboard = () => {
   }, [openComposer]);
 
   return (
-    <div className="dashboard-shell animate-fade-in">
+    <div className="dashboard-shell dashboard-shell-student animate-fade-in">
       <DashboardHero id="dashboard" tone="student">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-5">

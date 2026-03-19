@@ -65,10 +65,8 @@ export const LoginPage = () => {
       sectionLabel="Sign in"
       heading="Sign in to CampusFix"
       description="Use your username and password to continue."
-      heroBrand
+      layout="single"
       documentTitle="Sign in"
-      brandTitle="Welcome back"
-      brandSubtitle="Sign in to manage and track campus maintenance requests across your institution."
       footer={(
         <div className="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between">
           <p>New to CampusFix?</p>

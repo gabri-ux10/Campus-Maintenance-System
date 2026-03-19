@@ -50,60 +50,6 @@ const normalizeRegisterSubmitError = (message) => {
   return value;
 };
 
-const registerSteps = [
-  {
-    id: "details",
-    label: "Account details",
-    description: "Choose your username and email.",
-    state: "current",
-  },
-  {
-    id: "password",
-    label: "Secure password",
-    description: "Create a strong sign-in password.",
-    state: "upcoming",
-  },
-  {
-    id: "verify",
-    label: "Verify email",
-    description: "Confirm the code we send next.",
-    state: "upcoming",
-  },
-];
-
-const registerHeaderAddon = (
-  <div className="rounded-[1.2rem] border border-slate-200/75 bg-white/70 px-4 py-3 text-left shadow-sm dark:border-slate-800 dark:bg-slate-950/52">
-    <div className="flex items-center justify-center gap-2 sm:gap-3">
-      {registerSteps.map((step, index) => (
-        <div key={step.id} className="flex items-center gap-2">
-          <span
-            className={`flex h-2.5 w-2.5 rounded-full ${
-              step.state === "current"
-                ? "bg-campus-500 shadow-[0_0_0_4px_rgba(29,99,237,0.12)]"
-                : "bg-slate-300 dark:bg-slate-700"
-            }`}
-          />
-          {index < registerSteps.length - 1 ? (
-            <span className="hidden h-px w-8 bg-slate-300 dark:bg-slate-700 sm:block" />
-          ) : null}
-        </div>
-      ))}
-    </div>
-    <div className="mt-3 grid gap-2 text-center sm:grid-cols-3">
-      {registerSteps.map((step) => (
-        <div key={step.id}>
-          <p className={`text-xs font-semibold ${step.state === "current" ? "text-campus-700 dark:text-campus-300" : "text-slate-500 dark:text-slate-400"}`}>
-            {step.label}
-          </p>
-          <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
-            {step.description}
-          </p>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
 export const RegisterPage = () => {
   const { register: registerAccount } = useAuth();
   const navigate = useNavigate();
@@ -177,11 +123,9 @@ export const RegisterPage = () => {
 
   return (
     <AuthShell
-      sectionLabel="Step 1 of 3"
       heading="Create your account"
       description="Start with your sign-in details. You will verify your email before your first login."
-      headerAddon={registerHeaderAddon}
-      heroBrand
+      layout="single"
       documentTitle="Create account"
       footer={(
         <div className="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between">
