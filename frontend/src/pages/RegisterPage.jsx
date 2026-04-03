@@ -124,7 +124,7 @@ export const RegisterPage = () => {
   return (
     <AuthShell
       heading="Create your account"
-      description="Start with your sign-in details. We will send a secure verification link before your first login."
+      description="Start with your sign-in details. We will send a secure verification code before your first login."
       layout="single"
       documentTitle="Create account"
       footer={(

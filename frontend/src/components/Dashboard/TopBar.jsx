@@ -190,7 +190,7 @@ export const TopBar = ({ onMenuClick, activeSectionLabel }) => {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto sm:shrink-0 sm:gap-2">
             <div className="dashboard-topbar-chip hidden items-center gap-2 lg:flex">
               <CalendarDays size={14} className="text-campus-500" />
               <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{todayLabel}</span>
@@ -238,7 +238,7 @@ export const TopBar = ({ onMenuClick, activeSectionLabel }) => {
                 ref={userBtnRef}
                 type="button"
                 onClick={() => setShowUserMenu((current) => !current)}
-                className="dashboard-user-trigger interactive-control flex max-w-[calc(100vw-9rem)] items-center gap-2 rounded-xl border border-gray-200/80 bg-white/80 py-1.5 pl-1.5 pr-2 text-left dark:border-slate-700/80 dark:bg-slate-900/80 sm:max-w-none sm:pr-2.5"
+                className="dashboard-user-trigger interactive-control flex max-w-[calc(100vw-7rem)] items-center gap-2 rounded-xl border border-gray-200/80 bg-white/80 py-1.5 pl-1.5 pr-2 text-left dark:border-slate-700/80 dark:bg-slate-900/80 sm:max-w-none sm:pr-2.5"
               >
                 <UserAvatar
                   fullName={auth?.fullName}

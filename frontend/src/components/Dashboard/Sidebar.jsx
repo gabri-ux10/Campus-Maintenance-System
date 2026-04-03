@@ -115,7 +115,7 @@ export const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse, activeSe
       <aside
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className={`dashboard-sidebar glass-sidebar fixed left-0 top-0 z-50 flex h-screen w-[min(88vw,var(--sidebar-width))] flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] lg:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"
+        className={`dashboard-sidebar glass-sidebar fixed left-0 top-0 z-50 flex h-screen w-[min(90vw,var(--sidebar-width))] max-w-[320px] flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] lg:max-w-none lg:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"
           } ${collapsed ? "lg:w-sidebar-collapsed" : "lg:w-sidebar"}`}
       >
         <div className={`dashboard-brand-panel ${collapsed ? "px-2.5" : "px-4"} py-4`}>

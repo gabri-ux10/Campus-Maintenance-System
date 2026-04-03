@@ -38,7 +38,6 @@ import {
   useServiceDomainsQuery,
 } from "../queries/catalogQueries.js";
 import { analyticsService } from "../services/analyticsService";
-import { authService } from "../services/authService";
 import { ticketService } from "../services/ticketService";
 import { userService } from "../services/userService";
 import { exportToCSV, exportToPDF } from "../services/exportService";
@@ -374,7 +373,6 @@ export const AdminDashboard = () => {
     await refreshUsers();
     return response;
   };
-  const handleFetchSuggestions = (username, fullName) => authService.getUsernameSuggestions(username, fullName);
 
   const handleBroadcast = async (form) => {
     const response = await userService.sendBroadcast(form);
@@ -571,7 +569,6 @@ export const AdminDashboard = () => {
       <StaffOnboarding
         maintenanceUsers={maintenanceUsers}
         onInviteStaff={handleInviteStaff}
-        onFetchSuggestions={handleFetchSuggestions}
         latestInvite={latestInvite}
       />
 

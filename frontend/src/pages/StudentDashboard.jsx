@@ -574,7 +574,7 @@ export const StudentDashboard = () => {
       <DashboardHero id="dashboard" tone="student">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-5">
-            <div className="flex items-center gap-4">
+            <div className="flex items-start gap-3 sm:gap-4">
               <div className="dashboard-avatar-wrap">
                 <UserAvatar
                   fullName={auth?.fullName}
@@ -593,9 +593,9 @@ export const StudentDashboard = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={openComposer} className="btn-primary interactive-control"><TicketPlus size={16} />Submit Issue</button>
-            <button type="button" onClick={() => scrollToDashboardSection("tickets")} className="btn-ghost interactive-control">View Requests<ArrowRight size={15} /></button>
+          <div className="flex w-full flex-wrap gap-3 xl:w-auto">
+            <button type="button" onClick={openComposer} className="btn-primary interactive-control w-full sm:w-auto"><TicketPlus size={16} />Submit Issue</button>
+            <button type="button" onClick={() => scrollToDashboardSection("tickets")} className="btn-ghost interactive-control w-full sm:w-auto">View Requests<ArrowRight size={15} /></button>
           </div>
         </div>
       </DashboardHero>
@@ -615,11 +615,11 @@ export const StudentDashboard = () => {
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Report a campus issue</h2>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Strong requests include a precise location, clear description, urgency, and a photo when visibility matters.</p>
             </div>
-            <button type="button" onClick={() => setShowForm(false)} className="btn-ghost interactive-control">Close composer</button>
+            <button type="button" onClick={() => setShowForm(false)} className="btn-ghost interactive-control w-full sm:w-auto">Close composer</button>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.8fr)]">
-            <form onSubmit={submitTicket} className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.8fr)]">
+            <form onSubmit={submitTicket} className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Title</label>
                 <input required value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-campus-400 focus:ring-2 focus:ring-campus-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-campus-900/30" placeholder="Short summary of the issue" />
@@ -705,8 +705,8 @@ export const StudentDashboard = () => {
               </div>
               {submitError && <p className="md:col-span-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{submitError}</p>}
               <div className="md:col-span-2 flex flex-wrap items-center gap-3">
-                <button disabled={submitLoading} className="btn-primary interactive-control">{submitLoading ? "Submitting..." : "Submit Request"}</button>
-                <button type="button" onClick={() => setShowForm(false)} className="btn-ghost interactive-control">Cancel</button>
+                <button disabled={submitLoading} className="btn-primary interactive-control w-full sm:w-auto">{submitLoading ? "Submitting..." : "Submit Request"}</button>
+                <button type="button" onClick={() => setShowForm(false)} className="btn-ghost interactive-control w-full sm:w-auto">Cancel</button>
               </div>
             </form>
 
@@ -728,7 +728,7 @@ export const StudentDashboard = () => {
         </MotionCardSurface>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]">
         <MotionCardSurface
           as="section"
           cardId="student-current-tracker"

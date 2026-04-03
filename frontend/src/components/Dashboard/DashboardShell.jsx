@@ -163,14 +163,14 @@ export const DashboardShell = ({ children }) => {
       />
 
       <div
-        className={`dashboard-content-shell relative z-10 transition-all duration-300 ease-in-out ${
+        className={`dashboard-content-shell relative z-10 overflow-x-clip transition-all duration-300 ease-in-out ${
           effectiveCollapsed ? "lg:pl-sidebar-collapsed" : "lg:pl-sidebar"
         }`}
       >
         <TopBar onMenuClick={() => setSidebarOpen(true)} activeSectionLabel={activeSectionLabel} />
 
-        <main className="px-4 pb-8 pt-6 sm:px-6 lg:px-8 xl:px-10">
-          <div className="mx-auto max-w-[1480px]">{children}</div>
+        <main className="px-3 pb-8 pt-4 sm:px-5 sm:pt-6 lg:px-8 xl:px-10">
+          <div className="mx-auto w-full max-w-[1480px]">{children}</div>
         </main>
       </div>
     </div>

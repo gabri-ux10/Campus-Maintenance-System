@@ -152,7 +152,7 @@ export const QuickLinksSection = ({ config, useAboutLinks = false }) => {
                         </div>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">We simplify campus maintenance communication and issue resolution.</p>
                         <div className="mt-4 space-y-2 text-sm">
-                            <a href="mailto:campusfixsystems@gmail.com" className="inline-flex items-center gap-2 font-semibold text-gray-700 no-underline transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300">
+                            <a href="mailto:campusfixsystems@gmail.com" className="inline-flex items-center gap-2 break-all font-semibold text-gray-700 no-underline transition hover:text-campus-600 dark:text-gray-200 dark:hover:text-campus-300">
                                 <Mail size={14} />
                                 campusfixsystems@gmail.com
                             </a>
@@ -214,40 +214,37 @@ export const QuickLinksSection = ({ config, useAboutLinks = false }) => {
     );
 };
 
-export const BottomSocialSection = () => {
+export const Footer = () => {
     const [ref, visible] = useScrollReveal(0.08);
 
     return (
-        <section className="landing-section bg-white pb-5 dark:bg-slate-900">
+        <footer className="landing-section bg-white dark:bg-slate-950">
             <div
                 ref={ref}
-                className={`mx-auto max-w-7xl px-5 transition-all duration-700 sm:px-6 ${visible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
+                className={`mx-auto max-w-7xl px-5 pb-6 transition-all duration-700 sm:px-6 ${visible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
                     }`}
             >
-                <p className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">Follow CampusFix</p>
-                <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
-                    {SOCIALS.map((social) => (
-                        <a
-                            key={social.label}
-                            href={social.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label={social.label}
-                            className={`group flex h-14 w-14 items-center justify-center rounded-2xl border bg-white transition-all duration-300 hover:-translate-y-1 dark:bg-slate-900/70 ${social.style}`}
-                        >
-                            <social.Icon className="h-6 w-6" />
-                        </a>
-                    ))}
+                <div className="rounded-3xl border border-gray-200/80 bg-white/75 px-4 py-5 dark:border-slate-700/80 dark:bg-slate-900/70 sm:px-6">
+                    <p className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">Follow CampusFix</p>
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+                        {SOCIALS.map((social) => (
+                            <a
+                                key={social.label}
+                                href={social.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={social.label}
+                                className={`group flex h-12 w-12 items-center justify-center rounded-2xl border bg-white transition-all duration-300 hover:-translate-y-1 sm:h-14 sm:w-14 dark:bg-slate-900/70 ${social.style}`}
+                            >
+                                <social.Icon className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </a>
+                        ))}
+                    </div>
                 </div>
+                <p className="relative z-10 pt-5 text-center text-[11px] font-medium tracking-wide text-gray-600 dark:text-gray-500">
+                    {"\u00A9"} {new Date().getFullYear()} CampusFix Systems
+                </p>
             </div>
-        </section>
+        </footer>
     );
 };
-
-export const Footer = () => (
-    <footer className="landing-section bg-white dark:bg-slate-950">
-        <p className="relative z-10 pb-6 text-center text-[11px] font-medium tracking-wide text-gray-600 dark:text-gray-500">
-            {"\u00A9"} {new Date().getFullYear()} CampusFix Systems
-        </p>
-    </footer>
-);
