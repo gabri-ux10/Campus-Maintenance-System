@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { Footer, QuickLinksSection } from "../components/Landing/Footer";
+import { Footer } from "../components/Landing/Footer";
 import { Navbar } from "../components/Landing/Navbar";
 
 export const LandingPage = () => {
@@ -33,12 +33,6 @@ export const LandingPage = () => {
           </div>
         </section>
       </main>
-      <QuickLinksSection
-        config={{
-          supportPhone: "+254 747988030",
-        }}
-        useAboutLinks
-      />
       <Footer />
     </div>
   );

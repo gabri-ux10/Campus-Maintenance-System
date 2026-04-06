@@ -1,7 +1,7 @@
 import { ArrowLeft, FileText } from "lucide-react";
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Footer, QuickLinksSection } from "../components/Landing/Footer";
+import { Footer } from "../components/Landing/Footer";
 import { Navbar } from "../components/Landing/Navbar";
 
 const PRIVACY_POINTS = [
@@ -46,7 +46,6 @@ export const PrivacyPage = () => {
           </ul>
         </section>
       </main>
-      <QuickLinksSection config={{ supportPhone: "+254 747988030" }} useAboutLinks />
       <Footer />
     </div>
   );

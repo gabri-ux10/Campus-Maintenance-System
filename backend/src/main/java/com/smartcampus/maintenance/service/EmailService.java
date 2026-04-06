@@ -106,7 +106,7 @@ public class EmailService {
                 text,
                 "Maintenance access",
                 "You have been invited to CampusFix.",
-                "Use the secure button below to set your password and activate your maintenance account.",
+                "Use the secure button below to choose your username and password, then activate your maintenance account.",
                 null,
                 "Accept Invitation",
                 acceptUrl,

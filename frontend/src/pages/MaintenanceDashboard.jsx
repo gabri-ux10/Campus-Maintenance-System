@@ -211,7 +211,7 @@ const OperationalBriefDetail = ({ queueHealth, avgRating, avgRatingLoading, aver
 
 export const MaintenanceDashboard = () => {
   const { auth } = useAuth();
-  const { tickets, loading, error, refresh } = useTickets(() => ticketService.getAssignedTickets(), [], { pollMs: 10000 });
+  const { tickets, loading, error, refresh } = useTickets(() => ticketService.getAssignedTickets(), [], { pollMs: 30000 });
   const [notes, setNotes] = useState({});
   const [actionState, setActionState] = useState({ ticketId: null, loading: false, error: "" });
   const [selectedTicket, setSelectedTicket] = useState(null);

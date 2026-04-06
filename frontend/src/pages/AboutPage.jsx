@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, ClipboardList, Route, Users } from "lucide-react";
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Footer, QuickLinksSection } from "../components/Landing/Footer";
+import { Footer } from "../components/Landing/Footer";
 import { Navbar } from "../components/Landing/Navbar";
 
 const PRODUCT_POINTS = [
@@ -60,6 +60,24 @@ const FAQS = [
 export const AboutPage = () => {
   useEffect(() => {
     document.title = "Learn More | CampusFix";
+
+    const applyHashOffset = () => {
+      const hash = window.location.hash;
+      if (!hash || !hash.startsWith("#")) return;
+      const target = document.getElementById(hash.slice(1));
+      if (!target) return;
+      const nav = document.querySelector("[data-landing-navbar='true']");
+      const navOffset = (nav?.getBoundingClientRect().height ?? 0) + 12;
+      const top = Math.max(0, window.scrollY + target.getBoundingClientRect().top - navOffset);
+      window.scrollTo({ top, behavior: "auto" });
+    };
+
+    const timer = window.setTimeout(applyHashOffset, 0);
+    window.addEventListener("hashchange", applyHashOffset);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("hashchange", applyHashOffset);
+    };
   }, []);
 
   return (
@@ -81,7 +99,7 @@ export const AboutPage = () => {
           Back to Landing
         </Link>
 
-        <section id="product" className="mt-6 min-h-[52vh] rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:p-10">
+        <section id="product" className="mt-6 min-h-[52vh] scroll-mt-40 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full bg-campus-50 px-3 py-1 text-xs font-semibold text-campus-700 dark:bg-campus-900/30 dark:text-campus-300">
             <ClipboardList size={14} />
             Product
@@ -100,7 +118,7 @@ export const AboutPage = () => {
           </ul>
         </section>
 
-        <section id="workflow" className="mt-8 min-h-[52vh] rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:p-10">
+        <section id="workflow" className="mt-8 min-h-[52vh] scroll-mt-40 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full bg-campus-50 px-3 py-1 text-xs font-semibold text-campus-700 dark:bg-campus-900/30 dark:text-campus-300">
             <Route size={14} />
             Workflow
@@ -119,7 +137,7 @@ export const AboutPage = () => {
           </div>
         </section>
 
-        <section id="faq" className="mt-8 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:p-10">
+        <section id="faq" className="mt-8 scroll-mt-40 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full bg-campus-50 px-3 py-1 text-xs font-semibold text-campus-700 dark:bg-campus-900/30 dark:text-campus-300">
             <Users size={14} />
             FAQ
@@ -146,7 +164,6 @@ export const AboutPage = () => {
         </div>
       </main>
 
-      <QuickLinksSection config={{ supportPhone: "+254 747988030" }} useAboutLinks />
       <Footer />
     </div>
   );

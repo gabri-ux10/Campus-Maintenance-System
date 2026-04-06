@@ -578,7 +578,7 @@ public class AuthService {
         }
 
         if (userService.isUsernameUnavailable(username)) {
-            throw new ConflictException("Username is already in use. Ask an admin to issue a new invite.");
+            throw new ConflictException("Username is already in use. Choose a different username and try again.");
         }
         if (userRepository.existsByEmailIgnoreCase(invite.getEmail())) {
             throw new ConflictException("Email is already in use. Ask an admin to issue a new invite.");
